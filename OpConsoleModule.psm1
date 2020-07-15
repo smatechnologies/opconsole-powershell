@@ -745,7 +745,7 @@ function OpConsole_Reports($url,$token)
             $outputSelection = Read-Host "Enter an option to view job output <id> (blank to go back)"
             if($outputSelection -ne "")
             {
-                $jobNumber = (OpCon_GetDailyJob -url $url -token $token -id ($resultMenu[$outputSelection].JobId)).jobNumber | Out-Host
+                $jobNumber = (OpCon_GetDailyJob -url $url -token $token -id ($resultMenu[$outputSelection].JobId)).jobNumber
                 $jobOutput = (OpCon_GetJobOutput -url $url -token $token -jobNumber $jobnumber).jobInstanceActionItems[0].data 
                 $jobOutput | Out-Host
                 Write-Host "Job output saved to variable `$jobOutput"
@@ -769,7 +769,7 @@ function OpConsole_Reports($url,$token)
 
         if($subMenu -eq 0)
         { $suppress = opc-reports -url $url -token $token }
-        elseif($subMenu[$selectSubMenu].Option -eq "Start Machine")
+        elseif($subMenu[$selectSubMenu].Option -eq "Machine")
         { 
             $machines = OpCon_GetAgent -url $url -token $token
             $machines | Format-Table Id,Name,@{Label="Type";Expression={ $_.type.description } }
@@ -787,3 +787,31 @@ function OpConsole_Reports($url,$token)
     }
 }
 New-Alias "opc-reports" OpConsole_Reports
+
+function msgbox {
+    param (
+        [string]$Message,
+        [string]$Title = 'Message box title',   
+        [string]$buttons = 'ok'
+    )
+    # This function displays a message box by calling the .Net Windows.Forms (MessageBox class)
+     
+    # Load the assembly
+    Add-Type -AssemblyName System.Windows.Forms | Out-Null
+     
+    # Define the button types
+    switch ($buttons) {
+       'ok' {$btn = [System.Windows.Forms.MessageBoxButtons]::OK; break}
+       #'okcancel' {$btn = [System.Windows.Forms.MessageBoxButtons]::OKCancel; break}
+       #'YesNoCancel' {$btn = [System.Windows.Forms.MessageBoxButtons]::YesNoCancel; break}
+       #'YesNo' {$btn = [System.Windows.Forms.MessageBoxButtons]::yesno; break}
+       #'RetryCancel'{$btn = [System.Windows.Forms.MessageBoxButtons]::RetryCancel; break}
+       #default {$btn = [System.Windows.Forms.MessageBoxButtons]::RetryCancel; break}
+    }
+     
+    # Display the message box
+    $Return=[System.Windows.Forms.MessageBox]::Show($Message,$Title,$btn)
+    
+    # Display the option chosen by the user:
+    #$Return
+}

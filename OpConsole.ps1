@@ -10,15 +10,15 @@ if((Test-Path $opconModule) -and (Test-Path $opconsoleModule))
     Import-Module -Name $opconsolemodule -Force
 
     #Verify PS version is at least 7.0 
-    if($PSVersionTable.PSVersion.Major -lt 7)
+    if($PSVersionTable.PSVersion.Major -lt 8)
     {
-        Write-Host "OpConsole only supports PowerShell 7.0+"
+        MsgBox -Title "Error" -Message "OpConsole only supports Powershell 7+" 
         Exit
     }
 }
 else
 {
-    Write-Host "Unable to import SMA API modules!"
+    MsgBox -Title "Error" -Message "Unable to import SMA API modules!" 
     Exit
 }
 
@@ -48,7 +48,7 @@ if(test-path $consoleConfig)
                                                     
                                                     if($_ -like "USER*")
                                                     { $users += [pscustomobject]@{ "id"=$users.Count;"user"=$_.Substring(5,$_.IndexOf("=")-5);"environment"=($_.Split("="))[1] } }
-
+                                                    
                                                     if($_ -like "CONNECT*")
                                                     { 
                                                         $version = ""
@@ -63,20 +63,34 @@ else
 { return Write-Host "No OpConsole.ini file found at: "$path }
 
 # Add the users to the appropriate environment
-$suppress = $logins | ForEach-Object{ 
-                                        $tempName = $_.name
-                                        $tempId = $_.id
-                                        $users | Where-Object{ 
-                                                                if($_.environment -eq $tempName)
-                                                                { $logins[$tempId].user = $_.user }
-                                                            }
+if($users.Count -gt 0)
+{
+    $logins | ForEach-Object{ 
+                                $loginURL = $_.URL
+                                $loginName = $_.name
+                                $loginRelease = $_.release
+
+                                $allUsers = $users | Where-Object{ $_.environment -eq $loginName}
+                                if($allUsers.Count -gt 1)
+                                {
+                                    For($x=0;$x -lt $allUsers.Count;$x++)
+                                    {
+                                        if($x -eq 0)
+                                        { ($logins | Where-Object{$_.name -eq $allUsers[$x].environment}).user = $allUsers[$x].user }
+                                        else
+                                        { $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$loginName;"url"=$loginURL;"user"=$allUsers[$x].user;"token"="";"expiration"="";"release"=$loginRelease;"active"="false" } }
                                     }
+                                }
+                                elseif($allUsers.Count -eq 1)
+                                { ($logins | Where-Object{$_.name -eq $allUsers.environment}).user = $allUsers.user }
+                            }
+}
 
 # Display logins
 if($logins.Count -gt 1)
 { 
     Write-Host "Imported OpCon Environments:"
-    $logins | Where-Object{ $_.name -ne "Create New" } | Format-Table Name,URL,Release | Out-Host 
+    $logins | Where-Object{ $_.name -ne "Create New" } | Format-Table Name,URL,User,Release | Out-Host 
 }
 
 Write-Host "For help use 'opc-help', to connect to OpCon use 'opc-connect'`n"
