@@ -425,7 +425,7 @@ Function OpConsole_Connect($logins)
     $logins | ForEach-Object -Parallel { if($_.active -eq "true" -or $_.active -eq "")
                                             { $_.active = "false" }
                                         }
-    $logins | Format-Table Id,Name,URL,User,Expiration,Release,Active | Out-Host #| Out-GridView -Title "Select OpCon environments to connect with" -Passthru
+    $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host #| Out-GridView -Title "Select OpCon environments to connect with" -Passthru
     $opconEnv = Read-Host "Enter OpCon environment (id)"
 
     if($opconEnv -gt 0)
@@ -708,12 +708,123 @@ function OpConsole_Reports($url,$token)
     $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Exit" }
     $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Status Report" }
     $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Count By Status" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs Running by Platform" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs waiting on Threshold/Resource" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "User Report" }
     $menu | Format-Table Id,Option | Out-Host
     $report = Read-Host "Enter an option <id>"
 
     if($menu[$report].Option -eq "Job Status Report")
+    { opc-jobstatus -url $url -token $token }
+    elseif($menu[$report].Option -eq "Job Count By Status")
+    { opc-jobcountbystatus -url $url -token $token }
+    elseif($menu[$report].Option -eq "Jobs Running by Platform")
+    { opc-jobsbyplatform -url $url -token $token }
+    elseif($menu[$report].Option -eq "Jobs waiting on Threshold/Resource")
+    { opc-jobswaiting -url $url -token $token }
+    elseif($menu[$report].Option -eq "User Report")
+    { opc-userreport -url $url -token $token }
+}
+New-Alias "opc-reports" OpConsole_Reports
+
+function msgbox {
+    param (
+        [string]$Message,
+        [string]$Title = 'Message box title',   
+        [string]$buttons = 'ok'
+    )   
+    # Load the assembly
+    Add-Type -AssemblyName System.Windows.Forms | Out-Null
+     
+    # Define the button types
+    switch ($buttons) {
+       'ok' {$btn = [System.Windows.Forms.MessageBoxButtons]::OK; break}
+       #'okcancel' {$btn = [System.Windows.Forms.MessageBoxButtons]::OKCancel; break}
+       #'YesNoCancel' {$btn = [System.Windows.Forms.MessageBoxButtons]::YesNoCancel; break}
+       #'YesNo' {$btn = [System.Windows.Forms.MessageBoxButtons]::yesno; break}
+       #'RetryCancel'{$btn = [System.Windows.Forms.MessageBoxButtons]::RetryCancel; break}
+       #default {$btn = [System.Windows.Forms.MessageBoxButtons]::RetryCancel; break}
+    }
+     
+    # Display the message box
+    $Return=[System.Windows.Forms.MessageBox]::Show($Message,$Title,$btn)
+    
+    # Display the option chosen by the user:
+    #$Return
+}
+
+function OpConsole_UserReport($url,$token)
+{
+    $users = OpCon_GetUser -url $url -token $token
+    $users | Format-Table Id,LoginName,Email,LastLoggedIn | Out-Host
+}
+New-Alias "opc-userreport" OpConsole_UserReport
+
+function OpConsole_JobsRunningByPlatformReport($url,$token)
+{
+    $agents = OpCon_GetAgent -url $url -token $token
+    $agents | Format-Table Id,Name,@{Label="Platform";Expression={$_.type.description} },CurrentJobs | Out-Host
+
+    $selection = Read-Host "Enter an id to view running jobs on platform"
+    OpCon_GetDailyJob -url $url -token $token | Where-Object{ 
+                                                                ($_.startMachine.name -eq ($agents | Where-Object{$_.id -eq $selection }).name) -and ($_.status.category -eq "Running")
+                                                            } | Format-Table @{Label="Schedule";Expression={$_.schedule.name} },@{Label="Date";Expression={$_.schedule.date.ToString().SubString(0,9)} },Name -Wrap | Out-Host
+
+}
+New-Alias "opc-jobsbyplatform" OpConsole_JobsRunningByPlatformReport
+
+function OpConsole_JobsWaitingReport($url,$token)
+{
+    $date = Read-Host "Enter schedule date (yyyy-MM-dd, blank for today)"
+    if($date -eq "")
+    { $date = Get-Date -Format "yyyy-MM-dd" }
+    else
+    { $date = $date | Get-Date -Format "yyyy-MM-dd" }
+
+    $jobs = OpCon_GetDailyJob -url $url -token $token -date $date | Where-Object{$_.status.description -eq "Wait Threshold/Resource Dependency"} 
+    
+    if($jobs.Count -gt 0)
+    { $jobs | Format-Table UId,@{Label="Date";Expression={$_.schedule.date.ToString().SubString(0,9)} },@{Label="Schedule";Expression={$_.schedule.name} },Name | Out-Host }
+    else
+    { Write-Host "No jobs found waiting on threshold/resources" }
+}
+New-Alias "opc-jobswaiting" OpConsole_JobsWaitingReport
+
+function OpConsole_JobCountByStatusReport($url,$token)
+{
+    # status, machine, tags
+    $subMenu =@()
+    $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="Go Back"}
+    $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="Machine"}
+    $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="Tags"}
+    $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="All"}
+
+    $subMenu | Format-Table Id,Option | Out-Host
+    $selectSubMenu = Read-Host "Enter a filter option <id>"
+
+    if($subMenu -eq 0)
+    { $suppress = opc-reports -url $url -token $token }
+    elseif($subMenu[$selectSubMenu].Option -eq "Machine")
+    { 
+        $machines = OpCon_GetAgent -url $url -token $token
+        $machines | Format-Table Id,Name,@{Label="Type";Expression={ $_.type.description } }
+        $selectMachine = Read-Host "Enter a machine <id>"
+
+        OpCon_GetDailyJobsCountByStatus -url $url -token $token -machine ($machines | Where-Object{$_.id -eq $selectMachine} ).name  | Out-Host
+    }
+    elseif($subMenu[$selectSubMenu].Option -eq "Tags")
     {
-        $subMenu = @()
+        $tags = Read-Host "Enter a tag to filter"
+        OpCon_GetDailyJobsCountByStatus -url $url -token $token -tags $tags | Out-Host
+    }
+    elseif($subMenu[$selectSubMenu].Option -eq "All")
+    { OpCon_GetDailyJobsCountByStatus -url $url -token $token | Out-Host }
+}
+New-Alias "opc-jobcountbystatus" OpConsole_JobCountByStatusReport
+
+function OpConsole_JobStatusReport($url,$token)
+{
+    $subMenu = @()
         $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Exit" }
         $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "All"; OpCon = "*" }
         $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Failed"; OpCon = "failed" }
@@ -747,71 +858,12 @@ function OpConsole_Reports($url,$token)
             {
                 $jobNumber = (OpCon_GetDailyJob -url $url -token $token -id ($resultMenu[$outputSelection].JobId)).jobNumber
                 $jobOutput = (OpCon_GetJobOutput -url $url -token $token -jobNumber $jobnumber).jobInstanceActionItems[0].data 
-                $jobOutput | Out-Host
+                $global:jobOutput | Out-Host
                 Write-Host "Job output saved to variable `$jobOutput"
             }
             $suppress = opc-reports -url $url -token $token
         }
         else
         { Write-Host "No jobs found with that status on $date" }
-    }
-    elseif($menu[$report].Option -eq "Job Count By Status")
-    {
-        # status, machine, tags
-        $subMenu =@()
-        $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="Go Back"}
-        $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="Machine"}
-        $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="Tags"}
-        $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="All"}
-
-        $subMenu | Format-Table Id,Option | Out-Host
-        $selectSubMenu = Read-Host "Enter a filter option <id>"
-
-        if($subMenu -eq 0)
-        { $suppress = opc-reports -url $url -token $token }
-        elseif($subMenu[$selectSubMenu].Option -eq "Machine")
-        { 
-            $machines = OpCon_GetAgent -url $url -token $token
-            $machines | Format-Table Id,Name,@{Label="Type";Expression={ $_.type.description } }
-            $selectMachine = Read-Host "Enter a machine <id>"
-
-            OpCon_GetDailyJobsCountByStatus -url $url -token $token -machine ($machines | Where-Object{$_.id -eq $selectMachine} ).name  | Out-Host
-        }
-        elseif($subMenu[$selectSubMenu].Option -eq "Tags")
-        {
-            $tags = Read-Host "Enter a tag to filter"
-            OpCon_GetDailyJobsCountByStatus -url $url -token $token -tags $tags | Out-Host
-        }
-        elseif($subMenu[$selectSubMenu].Option -eq "All")
-        { OpCon_GetDailyJobsCountByStatus -url $url -token $token | Out-Host }
-    }
 }
-New-Alias "opc-reports" OpConsole_Reports
-
-function msgbox {
-    param (
-        [string]$Message,
-        [string]$Title = 'Message box title',   
-        [string]$buttons = 'ok'
-    )
-    # This function displays a message box by calling the .Net Windows.Forms (MessageBox class)
-     
-    # Load the assembly
-    Add-Type -AssemblyName System.Windows.Forms | Out-Null
-     
-    # Define the button types
-    switch ($buttons) {
-       'ok' {$btn = [System.Windows.Forms.MessageBoxButtons]::OK; break}
-       #'okcancel' {$btn = [System.Windows.Forms.MessageBoxButtons]::OKCancel; break}
-       #'YesNoCancel' {$btn = [System.Windows.Forms.MessageBoxButtons]::YesNoCancel; break}
-       #'YesNo' {$btn = [System.Windows.Forms.MessageBoxButtons]::yesno; break}
-       #'RetryCancel'{$btn = [System.Windows.Forms.MessageBoxButtons]::RetryCancel; break}
-       #default {$btn = [System.Windows.Forms.MessageBoxButtons]::RetryCancel; break}
-    }
-     
-    # Display the message box
-    $Return=[System.Windows.Forms.MessageBox]::Show($Message,$Title,$btn)
-    
-    # Display the option chosen by the user:
-    #$Return
-}
+New-Alias "opc-jobstatus" OpConsole_JobStatusReport

@@ -10,7 +10,7 @@ if((Test-Path $opconModule) -and (Test-Path $opconsoleModule))
     Import-Module -Name $opconsolemodule -Force
 
     #Verify PS version is at least 7.0 
-    if($PSVersionTable.PSVersion.Major -lt 8)
+    if($PSVersionTable.PSVersion.Major -lt 7)
     {
         MsgBox -Title "Error" -Message "OpConsole only supports Powershell 7+" 
         Exit
@@ -128,6 +128,16 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
         { $rerun = opc-history -cmdArray $cmdArray }
         elseif($command -eq "opc-services")
         { opc-services }
+        elseif($command -eq "opc-clear")
+        { Clear-Host }
+        elseif($command -eq "opc-reload")
+        {
+            Clear-Host
+            Import-Module -Name $opconmodule -Force
+            Import-Module -Name $opconsolemodule -Force
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            OpCon_SkipCerts # Skips any self signed certificates
+        }
         elseif(($command -notlike "*exit") -and ($command.StartsWith("opc") -and ($command -ne "opc-help")))
         { 
             $activeConnection = $logins | Where-Object{ $_.active -eq "true" }
