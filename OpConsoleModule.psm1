@@ -4,6 +4,7 @@ function OpConsole_Help
     $menu += [pscustomobject]@{"Command" = "opc-connect";"Description" = "Connects/Selects an OpCon environment"}
     $menu += [pscustomobject]@{"Command" = "opc-batchuser";"Description" = "Lets you manage OpCon batch users"}
     $menu += [pscustomobject]@{"Command" = "opc-eval";"Description" = "Lets you evaluate OpCon property expressions"}
+    $menu += [pscustomobject]@{"Command" = "opc-reports";"Description" = "View various reports in OpConsole"}
     #$menu += [pscustomobject]@{"command" = "opc-scripts";"description" = "Lets you view or run scripts"}
     #$menu += [pscustomobject]@{"command" = "opc-ss";"description" = "Lets you manage Self Service"}
     $menu += [pscustomobject]@{"Command" = "opc-property" ;"Description" = "Lets you manage OpCon global properties"}
