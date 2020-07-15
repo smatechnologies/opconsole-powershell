@@ -1,16 +1,28 @@
-# Project Name
-Project description
+# OpConsole
+A console-like program for OpCon.  Allows you to view reports and do other admin tasks from a console interface.
+
+# Prerequisites
+* OpCon v19.1 (most things will work on earlier versions)
+* Powershell 7.0+ (https://github.com/PowerShell/PowerShell)
+* OpConModule.psm1 (https://github.com/SMATechnologies/opcon-rest-api-client-powershell)
+
+# Instructions
+To run this program you must have all the files in the same directory.  The "config" file is not required but makes connecting to environments must faster and easier when starting each time.
+
+To add "OpConsole" to the Windows Terminal app, open the Settings and add the following lines under Profiles -> List:
+
+```
+        {
+          "name": "OpConsole",
+          "commandline": "pwsh.exe -ExecutionPolicy Bypass -File \"C:\\OpConsole.ps1\"",
+          "hidden": false
+        }
+```
 
 # Disclaimer
 No Support and No Warranty are provided by SMA Technologies for this project and related material. The use of this project's files is on your own risk.
 
 SMA Technologies assumes no liability for damage caused by the usage of any of the files offered here via this Github repository.
-
-# Prerequisites
-
-
-# Instructions
-
 
 # License
 Copyright 2019 SMA Technologies
