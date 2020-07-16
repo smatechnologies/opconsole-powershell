@@ -58,33 +58,33 @@ if(test-path $consoleConfig)
                                                         $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$_.Substring($_.IndexOf("_")+1,$_.IndexOf("=")-($_.IndexOf("_")+1));"url"=($_.Split("="))[1];"user"="";"token"="";"expiration"="";"release"=$version;"active"="false" } 
                                                     }
                                                 }
+
+    # Add the users to the appropriate environment
+    if($users.Count -gt 0)
+    {
+        $logins | ForEach-Object{ 
+                                    $loginURL = $_.URL
+                                    $loginName = $_.name
+                                    $loginRelease = $_.release
+
+                                    $allUsers = $users | Where-Object{ $_.environment -eq $loginName}
+                                    if($allUsers.Count -gt 1)
+                                    {
+                                        For($x=0;$x -lt $allUsers.Count;$x++)
+                                        {
+                                            if($x -eq 0)
+                                            { ($logins | Where-Object{$_.name -eq $allUsers[$x].environment}).user = $allUsers[$x].user }
+                                            else
+                                            { $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$loginName;"url"=$loginURL;"user"=$allUsers[$x].user;"token"="";"expiration"="";"release"=$loginRelease;"active"="false" } }
+                                        }
+                                    }
+                                    elseif($allUsers.Count -eq 1)
+                                    { ($logins | Where-Object{$_.name -eq $allUsers.environment}).user = $allUsers.user }
+                                }
+    }
 }
 else
 { return Write-Host "No OpConsole.ini file found at: "$path }
-
-# Add the users to the appropriate environment
-if($users.Count -gt 0)
-{
-    $logins | ForEach-Object{ 
-                                $loginURL = $_.URL
-                                $loginName = $_.name
-                                $loginRelease = $_.release
-
-                                $allUsers = $users | Where-Object{ $_.environment -eq $loginName}
-                                if($allUsers.Count -gt 1)
-                                {
-                                    For($x=0;$x -lt $allUsers.Count;$x++)
-                                    {
-                                        if($x -eq 0)
-                                        { ($logins | Where-Object{$_.name -eq $allUsers[$x].environment}).user = $allUsers[$x].user }
-                                        else
-                                        { $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$loginName;"url"=$loginURL;"user"=$allUsers[$x].user;"token"="";"expiration"="";"release"=$loginRelease;"active"="false" } }
-                                    }
-                                }
-                                elseif($allUsers.Count -eq 1)
-                                { ($logins | Where-Object{$_.name -eq $allUsers.environment}).user = $allUsers.user }
-                            }
-}
 
 # Display logins
 if($logins.Count -gt 1)

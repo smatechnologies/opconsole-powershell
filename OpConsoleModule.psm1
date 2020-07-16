@@ -426,8 +426,8 @@ Function OpConsole_Connect($logins)
     $logins | ForEach-Object -Parallel { if($_.active -eq "true" -or $_.active -eq "")
                                             { $_.active = "false" }
                                         }
-    $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host #| Out-GridView -Title "Select OpCon environments to connect with" -Passthru
-    $opconEnv = Read-Host "Enter OpCon environment (id)"
+    $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host
+    $opconEnv = Read-Host "Enter OpCon environment <id> (blank to go back)"
 
     if($opconEnv -gt 0)
     {
@@ -451,19 +451,27 @@ Function OpConsole_Connect($logins)
             $password = Read-Host "Password" -AsSecurestring #("Password for User: "+$logins[$opconEnv].User+" for Environment: "+$logins[$opconEnv].Name)
             $auth = OpCon_Login -url $logins[$opconEnv].url -user $logins[$opconEnv].user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
             
-            if($auth -ne "")
+            if($auth.id)
             {
                 $password = "" # Clear out password variable
                 $logins[$opconEnv].token = ("Token " + $auth.id)
                 $logins[$opconEnv].expiration = ($auth.validUntil)
                 $logins[$opconEnv].release = ((OpCon_APIVersion -url $logins[$opconEnv].url).opConRestApiProductVersion)
                 $logins[$opconEnv].active = "true"
-            } 
+                Clear-Host
+                Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+            }
+            else
+            { $suppress = opc-connect -logins $logins }
         }
         else 
-        { $logins[$opconEnv].active = "true" }
+        { 
+            $logins[$opconEnv].active = "true" 
+            Clear-Host
+            Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+        }
     }
-    elseif($logins[$opconEnv].id -eq 0)
+    elseif(($logins[$opconEnv].name -eq "Create New") -and ($opconEnv -ne ""))
     {
         Write-Host "Creating new OpCon connection....."
         $tls = Read-Host "TLS (y/n, or blank for TLS)"
@@ -493,19 +501,17 @@ Function OpConsole_Connect($logins)
         $user = Read-Host "Enter Username" #-AsSecureString 
         $password = Read-Host "Enter Password" -AsSecurestring          
         $auth = OpCon_Login -url $url -user $user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
-        $password = "" # Clear out password variable
-        $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$name;"url"=$url;"user"=$user;"token"=("Token " + $auth.id);"expiration"=($auth.validUntil);"release"=((OpCon_APIVersion -url $url).opConRestApiProductVersion);"active"="true"}
-        Clear-Host # Clears console
+        
+        if($auth.id)
+        {
+            $password = "" # Clear out password variable
+            $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$name;"url"=$url;"user"=$user;"token"=("Token " + $auth.id);"expiration"=($auth.validUntil);"release"=((OpCon_APIVersion -url $url).opConRestApiProductVersion);"active"="true"}
+            Clear-Host # Clears console
+            Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+        }
+        else
+        { $suppress = opc-connect -logins $logins }
     }
-
-    if($auth -ne "")
-    { 
-        Clear-Host
-        Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
-        #opc-help 
-    }
-    else
-    { $restart = opc-connect -logins $logins }
 
     return $logins
 }
@@ -703,31 +709,6 @@ function OpConsole_Expression($url,$token)
 }
 New-Alias "opc-eval" OpConsole_Expression
 
-function OpConsole_Reports($url,$token)
-{
-    $menu = @()
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Exit" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Status Report" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Count By Status" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs Running by Platform" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs waiting on Threshold/Resource" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "User Report" }
-    $menu | Format-Table Id,Option | Out-Host
-    $report = Read-Host "Enter an option <id>"
-
-    if($menu[$report].Option -eq "Job Status Report")
-    { opc-jobstatus -url $url -token $token }
-    elseif($menu[$report].Option -eq "Job Count By Status")
-    { opc-jobcountbystatus -url $url -token $token }
-    elseif($menu[$report].Option -eq "Jobs Running by Platform")
-    { opc-jobsbyplatform -url $url -token $token }
-    elseif($menu[$report].Option -eq "Jobs waiting on Threshold/Resource")
-    { opc-jobswaiting -url $url -token $token }
-    elseif($menu[$report].Option -eq "User Report")
-    { opc-userreport -url $url -token $token }
-}
-New-Alias "opc-reports" OpConsole_Reports
-
 function msgbox {
     param (
         [string]$Message,
@@ -753,6 +734,32 @@ function msgbox {
     # Display the option chosen by the user:
     #$Return
 }
+
+function OpConsole_Reports($url,$token)
+{
+    $menu = @()
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Exit" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Status Report" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Count By Status" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs Running by Platform" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs waiting on Threshold/Resource" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "User Report" }
+    $menu | Format-Table Id,Option | Out-Host
+    $report = Read-Host "Enter an option <id>"
+
+    if($menu[$report].Option -eq "Job Status Report")
+    { opc-jobstatus -url $url -token $token }
+    elseif($menu[$report].Option -eq "Job Count By Status")
+    { opc-jobcountbystatus -url $url -token $token }
+    elseif($menu[$report].Option -eq "Jobs Running by Platform")
+    { opc-jobsbyplatform -url $url -token $token }
+    elseif($menu[$report].Option -eq "Jobs waiting on Threshold/Resource")
+    { opc-jobswaiting -url $url -token $token }
+    elseif($menu[$report].Option -eq "User Report")
+    { opc-userreport -url $url -token $token }
+}
+New-Alias "opc-reports" OpConsole_Reports
+
 
 function OpConsole_UserReport($url,$token)
 {
@@ -793,7 +800,6 @@ New-Alias "opc-jobswaiting" OpConsole_JobsWaitingReport
 
 function OpConsole_JobCountByStatusReport($url,$token)
 {
-    # status, machine, tags
     $subMenu =@()
     $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="Go Back"}
     $subMenu += [PSCustomObject]@{Id=$subMenu.Count;Option="Machine"}
@@ -803,7 +809,7 @@ function OpConsole_JobCountByStatusReport($url,$token)
     $subMenu | Format-Table Id,Option | Out-Host
     $selectSubMenu = Read-Host "Enter a filter option <id>"
 
-    if($subMenu -eq 0)
+    if($subMenu[$selectSubMenu].Option -eq "Go Back")
     { $suppress = opc-reports -url $url -token $token }
     elseif($subMenu[$selectSubMenu].Option -eq "Machine")
     { 
