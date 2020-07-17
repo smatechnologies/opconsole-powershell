@@ -118,50 +118,48 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
 
     try
     {
-        if($command -eq "opc-connect")
-        { $logins = opc-connect -logins $logins }
-        elseif($command -eq "opc-connect-view")
-        { $logins | Format-Table Id,Name,URL,User,Expiration,Release,Active | Out-Host }
-        #elseif($command -eq "opc-logs")
-        #{ $logs = opc-logs -logs $logs } # Add option to search for lines that contain X
-        elseif($command -eq "opc-history")
-        { $rerun = opc-history -cmdArray $cmdArray }
-        elseif($command -eq "opc-services")
-        { opc-services }
-        elseif($command -eq "opc-clear")
-        { Clear-Host }
-        elseif($command -eq "opc-reload")
+        Switch -Wildcard ($command)
         {
-            Clear-Host
-            Import-Module -Name $opconmodule -Force
-            Import-Module -Name $opconsolemodule -Force
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            OpCon_SkipCerts # Skips any self signed certificates
+            "opc-clear"         { Clear-Host; break }
+            "opc-connect"       { $logins = opc-connect -logins $logins; break }
+            "opc-connect-view"  { $logins | Format-Table Id,Name,URL,User,Expiration,Release,Active | Out-Host; break }
+            "opc-exit"          { opc-exit; break }
+            "opc-help"          { opc-help; break }
+            "opc-history"       { $rerun = opc-history -cmdArray $cmdArray; break }
+            "opc-logs"          { $logs = opc-logs -logs $logs; break }
+            "opc-reload"        {
+                                    Clear-Host
+                                    Import-Module -Name $opconmodule -Force
+                                    Import-Module -Name $opconsolemodule -Force
+                                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                                    OpCon_SkipCerts # Skips any self signed certificates
+                                    break
+                                }
+            "opc-services"      { opc-services; break }
+            "opc-*"             {   
+                                    $activeConnection = $logins | Where-Object{ $_.active -eq "true" }
+                                    if($activeConnection)
+                                    {
+                                        if(OpConsole_CheckExpiration -connection $activeConnection)
+                                        {
+                                            $session = $logins | Where-Object{ $_.active -eq "true" }
+                                            Invoke-Expression -Command ("$command -url " + $session.url + " -token '" + $session.token + "'") | Out-Host
+                                        }
+                                        else 
+                                        {
+                                            $suppress = $logins | Where-Object{ $_.active -eq "true";$_.token = "" }
+                                            $suppress = opc-connect -logins $logins
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Write-Host "Must connect to an OpCon environment first!"
+                                        $suppress = opc-connect -logins $logins
+                                    }
+                                    break
+                                }
+            Default             { Invoke-Expression -Command $command | Out-Host; break }
         }
-        elseif(($command -notlike "*exit") -and ($command.StartsWith("opc") -and ($command -ne "opc-help")))
-        { 
-            $activeConnection = $logins | Where-Object{ $_.active -eq "true" }
-            if($activeConnection)
-            {
-                if(OpConsole_CheckExpiration -connection $activeConnection)
-                {
-                    $session = $logins | Where-Object{ $_.active -eq "true" }
-                    Invoke-Expression -Command ("$command -url " + $session.url + " -token '" + $session.token + "'") | Out-Host
-                }
-                else 
-                {
-                    $suppress = $logins | Where-Object{ $_.active -eq "true";$_.token = "" }
-                    $suppress = opc-connect -logins $logins
-                }
-            }
-            else
-            {
-                Write-Host "Must connect to an OpCon environment first!"
-                $suppress = opc-connect -logins $logins
-            }
-        }
-        elseif($command -notlike "*exit")
-        { Invoke-Expression -Command $command | Out-Host }
     }
     catch
     { Write-Host $_ }

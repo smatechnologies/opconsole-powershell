@@ -4,12 +4,13 @@ function OpConsole_Help
     $menu += [pscustomobject]@{"Command" = "opc-connect";"Description" = "Connects/Selects an OpCon environment"}
     $menu += [pscustomobject]@{"Command" = "opc-batchuser";"Description" = "Lets you manage OpCon batch users"}
     $menu += [pscustomobject]@{"Command" = "opc-eval";"Description" = "Lets you evaluate OpCon property expressions"}
-    $menu += [pscustomobject]@{"Command" = "opc-reports";"Description" = "View various reports in OpConsole"}
     #$menu += [pscustomobject]@{"command" = "opc-scripts";"description" = "Lets you view or run scripts"}
     #$menu += [pscustomobject]@{"command" = "opc-ss";"description" = "Lets you manage Self Service"}
     $menu += [pscustomobject]@{"Command" = "opc-property" ;"Description" = "Lets you manage OpCon global properties"}
-    $menu += [pscustomobject]@{"Command" = "opc-listall";"Description" = "Lists all commands"}
-    $menu += [pscustomobject]@{"Command" = "opc-history";"Description" = "Shows previous commands and allows for rerurns"}
+    $menu += [pscustomobject]@{"Command" = "opc-reports";"Description" = "View various reports in OpConsole"}
+    $menu += [pscustomobject]@{"Command" = "opc-services";"Description" = "Manage Windows services"}
+    #$menu += [pscustomobject]@{"Command" = "opc-listall";"Description" = "Lists all commands"}
+    #$menu += [pscustomobject]@{"Command" = "opc-history";"Description" = "Shows previous commands and allows for rerurns"}
     $menu | Format-Table Command,Description | Out-Host
 }
 New-Alias "opc-help" OpConsole_Help
@@ -58,23 +59,20 @@ function OpConsole_Services
             $subMenu | Format-Table Id,Option | Out-Host
             
             $checkStatus = Read-Host -Prompt "Enter an option <id>"
-            if($checkStatus -eq 1)
-            { 
-                While($checkStatus -eq 1)
+            While($subMenu[$checkStatus].Option -eq "Check service status")
+            {
+                For($x=0;$x -lt $selectedOptions.Count;$x++)
                 {
-                    For($x=0;$x -lt $selectedOptions.Count;$x++)
-                    {
-                        if($server -ne "")
-                        { Invoke-Command -ComputerName "$server" -Script { Get-Service | Where-Object{ $_.Name -like ("*" + $services[($selectedOptions[$x])].Name + "*") } } | Out-Host }
-                        else
-                        { Get-Service | Where-Object{ $_.Name -like ("*" + $services[($selectedOptions[$x])].Name +"*") } | Out-Host }
-                    }
-                    $subMenu | Format-Table Id,Option | Out-Host
-                    $checkStatus = Read-Host -Prompt "Enter an option <id>"
+                    if($server -ne "")
+                    { Invoke-Command -ComputerName "$server" -Script { Get-Service | Where-Object{ $_.Name -like ("*" + $services[($selectedOptions[$x])].Name + "*") } } | Out-Host }
+                    else
+                    { Get-Service | Where-Object{ $_.Name -like ("*" + $services[($selectedOptions[$x])].Name +"*") } | Out-Host }
                 }
+                $subMenu | Format-Table Id,Option | Out-Host
+                $checkStatus = Read-Host -Prompt "Enter an option <id>"
             }
             
-            if($checkStatus -eq 2)
+            if($subMenu[$checkStatus].Option -eq "Start over")
             { opc-services }           
         }
     }
@@ -93,68 +91,64 @@ function OpConsole_Properties($url,$token)
     $menu += [pscustomobject]@{"id"=$menu.Count;"Option" = "Create"}
     $menu += [pscustomobject]@{"id"=$menu.Count;"Option" = "View"}
     $menu += [pscustomobject]@{"id"=$menu.Count;"Option" = "Update"}
-    
-    $option = 999
-    while($option -ne 0)
-    { 
-        $properties = OpCon_GetGlobalProperty -url $url -token $token
 
-        $menu | Format-Table Id,Option | Out-Host
-        $option = Read-Host -Prompt "Enter an option <id>)"
+    $properties = OpCon_GetGlobalProperty -url $url -token $token
 
-        If($option -eq 2)
-        {
-            $property = Read-Host -Prompt "Global Property name (blank if all)"
-            
-            if($property -eq "")
-            { $properties | Out-Host }
+    $menu | Format-Table Id,Option | Out-Host
+    $option = Read-Host -Prompt "Enter an option <id>)"
+
+    If($menu[$option].Option -eq "View")
+    {
+        $property = Read-Host -Prompt "Global Property name (blank if all)"
+        
+        if($property -eq "")
+        { $properties | Out-Host }
+        else
+        { 
+            $result = $properties | Where-Object{ $_.name -like "$property" } 
+            $result | Out-Host
+
+            If($result.Count -eq 0)
+            { Write-Host "No properties with that name." }
+        }
+    }
+    ElseIf($menu[$option].Option -eq "Create")
+    {
+        $propertyName = Read-Host -Prompt "Enter the new property name"
+
+        $result = $properties | Where-Object{ $_.name -eq "$propertyName" }
+        
+        If($result)
+        { Write-Host "Property named $propertyName already exists!" }
+        else 
+        {  
+            $propertyValue = Read-Host -Prompt "Enter the property value"
+            $encrypted = Read-Host -Prompt "Encrypted? (y/n, blank for no)"
+
+            if($encrypted -match ("yes","y"))
+            { $encrypted = $true }
             else
-            { 
-                $result = $properties | Where-Object{ $_.name -like "$property" } 
-                $result | Out-Host
+            { $encrypted = $false }
 
-                If($result.Count -eq 0)
-                { Write-Host "No properties with that name." }
-            }
+            OpCon_CreateGlobalProperty -url $url -token $token -name $propertyName -value $propertyValue -encrypt $encrypted | Out-Host
         }
-        ElseIf($option -eq 1)
-        {
-            $propertyName = Read-Host -Prompt "Enter the new property name"
+    }
+    Elseif($menu[$option].Option -eq "Update")
+    {
+        $propertyName = Read-Host -Prompt "Enter the property name to update"
+        $result = $properties | Where-Object{ $_.name -eq "$propertyName" }
+        
+        If($result)
+        { 
+            Write-Host "Current property value"
+            Write-Host "----------------------"
+            $result | Out-Host
 
-            $result = $properties | Where-Object{ $_.name -eq "$propertyName" }
-            
-            If($result)
-            { Write-Host "Property named $propertyName already exists!" }
-            else 
-            {  
-                $propertyValue = Read-Host -Prompt "Enter the property value"
-                $encrypted = Read-Host -Prompt "Encrypted? (y/n, blank for no)"
-
-                if($encrypted -match ("yes","y"))
-                { $encrypted = $true }
-                else
-                { $encrypted = $false }
-
-                OpCon_CreateGlobalProperty -url $url -token $token -name $propertyName -value $propertyValue -encrypt $encrypted 
-            }
+            $propertyValue = Read-Host -Prompt "Enter the new property value"
+            OpCon_SetGlobalProperty -url $url -token $token -id $result.id -value $propertyValue | Out-Host
         }
-        Elseif($option -eq 3)
-        {
-            $propertyName = Read-Host -Prompt "Enter the property name to update"
-            $result = $properties | Where-Object{ $_.name -eq "$propertyName" }
-            
-            If($result)
-            { 
-                Write-Host "Current property value"
-                Write-Host "----------------------"
-                $result | Out-Host
-
-                $propertyValue = Read-Host -Prompt "Enter the new property value"
-                OpCon_SetGlobalProperty -url $url -token $token -id $result.id -value $propertyValue
-            }
-            else 
-            { Write-Host "Property named $propertyName not found!" } 
-        }
+        else 
+        { Write-Host "Property named $propertyName not found!" } 
     }
 }
 New-Alias "opc-property" OpConsole_Properties
@@ -295,8 +289,8 @@ New-Alias "opc-exit" OpConsole_Exit
 
 function OpConsole_ListAll
 {
-    Get-Alias | where-object{ $_.name.StartsWith("opc") } | Out-Host
-    Write-Host "To quit simply type 'exit'"
+    Get-Alias | where-object{ $_.name.StartsWith("opc-") } | Out-Host
+    Write-Host "To quit type 'opc-exit'"
 }
 New-Alias "opc-listall" OpConsole_ListAll
 
@@ -381,31 +375,62 @@ New-Alias "opc-logs" OpConsole_Logs
 
 function OpConsole_Scripts($url,$token)
 {
-    #$allScripts = OpCon_GetScripts -url $url -token $token
-     
+    $scriptsArray = @() 
+    $scriptName = Read-Host "Enter script name (wildcards supported *)"  
+    $getScripts = OpCon_GetScripts -url $url -token $token -scriptname $scriptName 
+          
+    if($getScripts.Count -gt 0)
+    {
+        $getScripts | ForEach-Object{ $scriptsArray += [pscustomobject]@{"Id"=$scriptsArray.Count;"Name"=$_.name;"Type"=$_.type.name;"ScriptId"=$_.id } } 
 
-    $scriptName = Read-Host "Script name"
-    $scriptVersion = Read-Host "Script version (blank for latest)"
-    $execute = Read-Host "Run $scriptName (y for yes, or n/blank for view)"
+        $scriptsArray | Format-Table Id,Name,Type | Out-Host
+        $script = Read-Host "Enter a script <id> (blank to go back)"
 
-    $versionArray = @()
-    $scriptId = (OpCon_GetScripts -url $url -token $token -scriptname $scriptName).id
-    (OpCon_GetScriptVersions -url $url -token $token -id $scriptId).versions | ForEach-Object{ $versionArray += $_.version }
-    if($scriptVersion)
-    { 
-        if($execute -eq "y")
-        { Invoke-Expression (OpCon_GetScript -url $url -token $token -scriptId $scriptId -versionId $scriptVersion).Content | Out-Host }
+        if($script -ne "")
+        {
+            $menu = @()
+            $menu += [pscustomobject]@{Id=$menu.Count;Option="Exit"}
+            $menu += [pscustomobject]@{Id=$menu.Count;Option="View script versions"}
+            $menu += [pscustomobject]@{Id=$menu.Count;Option="Start over"}
+        
+            $menu | Format-Table Id,Option | Out-Host
+            $selection = Read-Host "Enter an option <id>"
+        }
         else
-        { (OpCon_GetScript -url $url -token $token -scriptId $scriptId -versionId $scriptVersion).Content | Out-Host }
+        { opc-scripts -url $url -token $token }
+
+        if($menu[$selection].Option -eq "View script versions")
+        {
+            $versionArray = @()
+            (OpCon_GetScriptVersions -url $url -token $token -id $scriptsArray[$script].ScriptId).versions | ForEach-Object{ $versionArray += [pscustomobject]@{Version=$_.version;Comment=$_.message } }
+
+            $versionArray | Format-Table Version,Comment | Out-Host
+            $scriptVersion = Read-Host "Enter a script version <id>"
+            
+            $subMenu = @()
+            $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Exit"}
+            $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Start over"}
+            $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Run script version"}
+            $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="View script version"}
+            $subMenu | Format-Table Id,Option | Out-Host
+
+            $execute = Read-Host "Enter an option <id>"
+            Write-Host "================================"
+            
+            if($subMenu[$execute].Option -eq "Run script version")
+            { Invoke-Expression (OpCon_GetScript -url $url -token $token -scriptId $scriptsArray[$script].ScriptId -versionId $scriptVersion).Content | Out-Host }
+            elseif($subMenu[$execute].Option -eq "View script version")
+            { (OpCon_GetScript -url $url -token $token -scriptId $scriptsArray[$script].ScriptId -versionId $scriptVersion).Content | Out-Host }
+            elseif($subMenu[$execute].Option -eq "Start over")
+            { opc-scripts -url $url -token $token }
+        }
+        elseif($menu[$selection].Option -eq "Start over")
+        { opc-scripts -url $url -token $token }
     }
-    else 
-    { 
-        if($execute -eq "y")
-        { Invoke-Expression (OpCon_GetScript -url $url -token $token -scriptId $scriptId -versionId (($versionArray | Measure-Object -Maximum).Maximum)).Content | Out-Host }
-        else
-        { (OpCon_GetScript -url $url -token $token -scriptId $scriptId -versionId (($versionArray | Measure-Object -Maximum).Maximum)).Content | Out-Host }
-    }  
+    else
+    { Write-Host "No scripts found with that name" }
 }
+New-Alias "opc-scripts" OpConsole_Scripts
 
 
 <#
@@ -739,30 +764,29 @@ function OpConsole_Reports($url,$token)
 {
     $menu = @()
     $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Exit" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Status Report" }
     $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Count By Status" }
     $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs Running by Platform" }
+    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Status Report" }
     $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs waiting on Threshold/Resource" }
     $menu += [PSCustomObject]@{ id = $menu.Count; Option = "User Report" }
     $menu | Format-Table Id,Option | Out-Host
     $report = Read-Host "Enter an option <id>"
 
-    if($menu[$report].Option -eq "Job Status Report")
-    { opc-jobstatus -url $url -token $token }
-    elseif($menu[$report].Option -eq "Job Count By Status")
-    { opc-jobcountbystatus -url $url -token $token }
-    elseif($menu[$report].Option -eq "Jobs Running by Platform")
-    { opc-jobsbyplatform -url $url -token $token }
-    elseif($menu[$report].Option -eq "Jobs waiting on Threshold/Resource")
-    { opc-jobswaiting -url $url -token $token }
-    elseif($menu[$report].Option -eq "User Report")
-    { opc-userreport -url $url -token $token }
+    Switch(($menu[$report].Option))
+    {
+        "Job Count By Status"                { opc-jobcountbystatus -url $url -token $token; break }
+        "Jobs Running by Platform"           { opc-jobsbyplatform -url $url -token $token; break }
+        "Job Status Report"                  { opc-jobstatus -url $url -token $token; break }
+        "Jobs waiting on Threshold/Resource" { opc-jobswaiting -url $url -token $token; break }
+        "User Report"                        { opc-userreport -url $url -token $token; break }
+        Default                              { Write-Host "Invalid report selection"; opc-reports -url $url -token $token; break }
+    }
 }
 New-Alias "opc-reports" OpConsole_Reports
 
 
 function OpConsole_UserReport($url,$token)
-{
+{ 
     $users = OpCon_GetUser -url $url -token $token
     $users | Format-Table Id,LoginName,Email,LastLoggedIn | Out-Host
 }
