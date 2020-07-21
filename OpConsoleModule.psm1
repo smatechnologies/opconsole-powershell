@@ -286,6 +286,9 @@ function OpConsole_Exit
     Exit
 }
 New-Alias "opc-exit" OpConsole_Exit
+New-Alias "opc-logoff" OpConsole_Exit
+New-Alias "logoff" OpConsole_Exit
+New-Alias "quit" OpConsole_Exit
 
 function OpConsole_ListAll
 {
@@ -395,36 +398,41 @@ function OpConsole_Scripts($url,$token)
         
             $menu | Format-Table Id,Option | Out-Host
             $selection = Read-Host "Enter an option <id>"
-        }
-        else
-        { opc-scripts -url $url -token $token }
 
-        if($menu[$selection].Option -eq "View script versions")
-        {
-            $versionArray = @()
-            (OpCon_GetScriptVersions -url $url -token $token -id $scriptsArray[$script].ScriptId).versions | ForEach-Object{ $versionArray += [pscustomobject]@{Version=$_.version;Comment=$_.message } }
+            if($menu[$selection].Option -eq "View script versions")
+            {
+                $versionArray = @()
+                (OpCon_GetScriptVersions -url $url -token $token -id $scriptsArray[$script].ScriptId).versions | ForEach-Object{ $versionArray += [pscustomobject]@{Version=$_.version;Comment=$_.message } }
 
-            $versionArray | Format-Table Version,Comment | Out-Host
-            $scriptVersion = Read-Host "Enter a script version <id>"
-            
-            $subMenu = @()
-            $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Exit"}
-            $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Start over"}
-            $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Run script version"}
-            $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="View script version"}
-            $subMenu | Format-Table Id,Option | Out-Host
+                $versionArray | Format-Table Version,Comment | Out-Host
+                $scriptVersion = Read-Host "Enter a script version <id> (blank to exit)"
+                
+                if($scriptVersion -ne "")
+                {
+                    $subMenu = @()
+                    $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Exit"}
+                    $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Start over"}
+                    $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="Run script version"}
+                    $subMenu += [pscustomobject]@{Id=$subMenu.Count;Option="View script version"}
+                    $subMenu | Format-Table Id,Option | Out-Host
 
-            $execute = Read-Host "Enter an option <id>"
-            Write-Host "================================"
-            
-            if($subMenu[$execute].Option -eq "Run script version")
-            { Invoke-Expression (OpCon_GetScript -url $url -token $token -scriptId $scriptsArray[$script].ScriptId -versionId $scriptVersion).Content | Out-Host }
-            elseif($subMenu[$execute].Option -eq "View script version")
-            { (OpCon_GetScript -url $url -token $token -scriptId $scriptsArray[$script].ScriptId -versionId $scriptVersion).Content | Out-Host }
-            elseif($subMenu[$execute].Option -eq "Start over")
+                    $execute = Read-Host "Enter an option <id>"
+                    Write-Host "================================"
+                    
+                    if($subMenu[$execute].Option -eq "Run script version")
+                    { Invoke-Expression (OpCon_GetScript -url $url -token $token -scriptId $scriptsArray[$script].ScriptId -versionId $scriptVersion).Content | Out-Host }
+                    elseif($subMenu[$execute].Option -eq "View script version")
+                    { (OpCon_GetScript -url $url -token $token -scriptId $scriptsArray[$script].ScriptId -versionId $scriptVersion).Content | Out-Host }
+                    elseif($subMenu[$execute].Option -eq "Start over")
+                    { opc-scripts -url $url -token $token }
+                }
+                else
+                { opc-scripts -url $url -token $token }
+            }
+            elseif($menu[$selection].Option -eq "Start over")
             { opc-scripts -url $url -token $token }
         }
-        elseif($menu[$selection].Option -eq "Start over")
+        else
         { opc-scripts -url $url -token $token }
     }
     else
@@ -448,14 +456,14 @@ C:\PS> opconnect"
 #>
 Function OpConsole_Connect($logins)
 { 
-    $logins | ForEach-Object -Parallel { if($_.active -eq "true" -or $_.active -eq "")
-                                            { $_.active = "false" }
-                                        }
     $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host
     $opconEnv = Read-Host "Enter OpCon environment <id> (blank to go back)"
 
     if($opconEnv -gt 0)
     {
+        $logins | ForEach-Object -Parallel { if($_.active -eq "true" -or $_.active -eq "")
+                                            { $_.active = "false" }
+                                            }
         if($logins[$opconEnv].user -eq "")
         { $logins[$opconEnv].user = Read-Host "Enter Username" }
 
@@ -484,7 +492,7 @@ Function OpConsole_Connect($logins)
                 $logins[$opconEnv].release = ((OpCon_APIVersion -url $logins[$opconEnv].url).opConRestApiProductVersion)
                 $logins[$opconEnv].active = "true"
                 Clear-Host
-                Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+                Write-Host "Active connection is "($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
             }
             else
             { $suppress = opc-connect -logins $logins }
@@ -493,7 +501,7 @@ Function OpConsole_Connect($logins)
         { 
             $logins[$opconEnv].active = "true" 
             Clear-Host
-            Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+            Write-Host "Active connection is "($logins | Where-Object{ $_.active -eq "true"}).name"-"($logins | Where-Object{ $_.active -eq "true"}).user ", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
         }
     }
     elseif(($logins[$opconEnv].name -eq "Create New") -and ($opconEnv -ne ""))
@@ -774,6 +782,7 @@ function OpConsole_Reports($url,$token)
 
     Switch(($menu[$report].Option))
     {
+        "Exit"                               {}
         "Job Count By Status"                { opc-jobcountbystatus -url $url -token $token; break }
         "Jobs Running by Platform"           { opc-jobsbyplatform -url $url -token $token; break }
         "Job Status Report"                  { opc-jobstatus -url $url -token $token; break }

@@ -34,10 +34,11 @@ $logins += [pscustomobject]@{"id"=$logins.Count;"name"="Create New";"url"="";"us
 $logs = @()     # Array of log files
 $users = @()    # Array of api users
 $cmdArray = @() # Array to store commands entered
+$today = Get-Date -Format "yyyyMMdd"
 
-Write-Host "==================================================================================================================="
-Write-Host "                                   Welcome to OpConsole v0.5 for OpCon v19.1.1"
-Write-Host "===================================================================================================================`n"
+Write-Host "========================================================================================================="
+Write-Host "                            Welcome to OpConsole v0.5.$today for OpCon v19.1.1"
+Write-Host "=========================================================================================================`n"
 
 # Load any saved configurations
 if(test-path $consoleConfig)
@@ -127,6 +128,7 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
             "opc-help"          { opc-help; break }
             "opc-history"       { $rerun = opc-history -cmdArray $cmdArray; break }
             "opc-logs"          { $logs = opc-logs -logs $logs; break }
+            "opc-logoff"        { opc-exit; break }
             "opc-reload"        {
                                     Clear-Host
                                     Import-Module -Name $opconmodule -Force
@@ -153,7 +155,7 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
                                     }
                                     else
                                     {
-                                        Write-Host "Must connect to an OpCon environment first!"
+                                        Write-Host "`r`n*****Must connect to an OpCon environment first!*****"
                                         $suppress = opc-connect -logins $logins
                                     }
                                     break
