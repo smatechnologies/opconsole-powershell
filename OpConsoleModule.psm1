@@ -715,7 +715,7 @@ function OpConsole_CheckExpiration($connection)
         $date2 = Get-Date -Format "MM/dd/yyyy HH:mm"
         if($date2 -gt $date1)
         { 
-            Write-Host "API token expired for "$connection.Name" with user: "$connection.user
+            Write-Host "`r`n*****API token expired for "$connection.Name" with user: "$connection.user"*****"
             return $false
         }
         else 
@@ -933,7 +933,7 @@ function OpConsole_JobCountByStatusReport($url,$token)
     elseif($subMenu[$selectSubMenu].Option -eq "Machine")
     { 
         $machines = OpCon_GetAgent -url $url -token $token
-        $machines | Format-Table Id,Name,@{Label="Type";Expression={ $_.type.description } }
+        $machines | Format-Table Id,Name,@{Label="Type";Expression={ $_.type.description } } | Out-Host
         $selectMachine = Read-Host "Enter a machine <id>"
 
         OpCon_GetDailyJobsCountByStatus -url $url -token $token -machine ($machines | Where-Object{$_.id -eq $selectMachine} ).name  | Out-Host
