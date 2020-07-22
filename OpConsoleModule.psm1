@@ -4,10 +4,10 @@ function OpConsole_Help
     $menu += [pscustomobject]@{"Command" = "opc-connect";"Description" = "Connects/Selects an OpCon environment"}
     $menu += [pscustomobject]@{"Command" = "opc-batchuser";"Description" = "Lets you manage OpCon batch users"}
     $menu += [pscustomobject]@{"Command" = "opc-eval";"Description" = "Lets you evaluate OpCon property expressions"}
-    #$menu += [pscustomobject]@{"command" = "opc-ss";"description" = "Lets you manage Self Service"}
+    #$menu += [pscustomobject]@{"command" = "opc-ss";"Description" = "Lets you manage Self Service buttons"}
     $menu += [pscustomobject]@{"Command" = "opc-property" ;"Description" = "Lets you manage OpCon global properties"}
     $menu += [pscustomobject]@{"Command" = "opc-reports";"Description" = "View various reports in OpConsole"}
-    $menu += [pscustomobject]@{"command" = "opc-scripts";"description" = "Lets you view/run scripts from OpCon script repository"}
+    $menu += [pscustomobject]@{"command" = "opc-scripts";"Description" = "Lets you view/run scripts from OpCon script repository"}
     $menu += [pscustomobject]@{"Command" = "opc-services";"Description" = "Manage Windows services"}
     $menu += [pscustomobject]@{"Command" = "opc-listall";"Description" = "Lists all commands"}
     $menu | Format-Table Command,Description | Out-Host
@@ -94,7 +94,7 @@ function OpConsole_Properties($url,$token)
     $properties = OpCon_GetGlobalProperty -url $url -token $token
 
     $menu | Format-Table Id,Option | Out-Host
-    $option = Read-Host -Prompt "Enter an option <id>)"
+    $option = Read-Host -Prompt "Enter an option <id>"
 
     If($menu[$option].Option -eq "View")
     {
@@ -114,23 +114,56 @@ function OpConsole_Properties($url,$token)
     ElseIf($menu[$option].Option -eq "Create")
     {
         $propertyName = Read-Host -Prompt "Enter the new property name"
+        if($propertyName -ne "")
+        {     
+            $result = $properties | Where-Object{ $_.name -eq "$propertyName" }
+            
+            If($result)
+            { Write-Host "Property named $propertyName already exists!" }
+            else 
+            {  
+                $propertyValue = Read-Host -Prompt "Enter the property value"
+                if($propertyValue -eq "")
+                { $propertyValue = "default"}
 
-        $result = $properties | Where-Object{ $_.name -eq "$propertyName" }
-        
-        If($result)
-        { Write-Host "Property named $propertyName already exists!" }
-        else 
-        {  
-            $propertyValue = Read-Host -Prompt "Enter the property value"
-            $encrypted = Read-Host -Prompt "Encrypted? (y/n, blank for no)"
+                $encryptMenu = @()
+                $encryptMenu += [pscustomobject]@{Id=$encryptMenu.Count;Option="Exit"}
+                $encryptMenu += [pscustomobject]@{Id=$encryptMenu.Count;Option="Yes"}
+                $encryptMenu += [pscustomobject]@{Id=$encryptMenu.Count;Option="No (default)"}
+                $encryptMenu | Format-Table Id,Option | Out-Host
+                $encrypted = Read-Host -Prompt "Enter an encryption option <id> (blank for default)"
 
-            if($encrypted -match ("yes","y"))
-            { $encrypted = $true }
-            else
-            { $encrypted = $false }
+                if($encrypted -eq "")
+                { $encrypted = 2 }
 
-            OpCon_CreateGlobalProperty -url $url -token $token -name $propertyName -value $propertyValue -encrypt $encrypted | Out-Host
+                While($encryptMenu[$encrypted].Option -ne "Exit" )
+                {
+                    if(($encryptMenu[$encrypted].Option -eq "Yes") -or ($encryptMenu[$encrypted].Option -eq "No (default)"))
+                    { 
+                        if($encryptMenu[$encrypted].Option -eq "Yes")
+                        { OpCon_CreateGlobalProperty -url $url -token $token -name $propertyName -value $propertyValue -encrypt $true | Out-Host }
+                        else
+                        { OpCon_CreateGlobalProperty -url $url -token $token -name $propertyName -value $propertyValue -encrypt $false | Out-Host }
+
+                        $encryptMenu[$encrypted].Option = "Exit"
+                    }
+                    else 
+                    {
+                        Write-Host "Invalid encryption option specified!"
+                        $encryptMenu | Format-Table Id,Option | Out-Host
+                        $encrypted = Read-Host -Prompt "Enter an encryption option <id> (blank for default)" 
+
+                        if($encrypted -eq "")
+                        { $encrypted = 2 }
+                    }
+                }
+            }
         }
+        else 
+        { 
+            Write-Host "No property name specified!" 
+            opc-properties -url $url -token $token
+        } 
     }
     Elseif($menu[$option].Option -eq "Update")
     {
@@ -491,7 +524,7 @@ Function OpConsole_Connect($logins)
                 $logins[$opconEnv].release = ((OpCon_APIVersion -url $logins[$opconEnv].url).opConRestApiProductVersion)
                 $logins[$opconEnv].active = "true"
                 Clear-Host
-                Write-Host "Active connection is "($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+                Write-Host "Active connection is"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
             }
             else
             { $suppress = opc-connect -logins $logins }
@@ -500,7 +533,7 @@ Function OpConsole_Connect($logins)
         { 
             $logins[$opconEnv].active = "true" 
             Clear-Host
-            Write-Host "Active connection is "($logins | Where-Object{ $_.active -eq "true"}).name"-"($logins | Where-Object{ $_.active -eq "true"}).user ", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+            Write-Host "Active connection is"($logins | Where-Object{ $_.active -eq "true"}).name"-"($logins | Where-Object{ $_.active -eq "true"}).user ", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
         }
     }
     elseif(($logins[$opconEnv].name -eq "Create New") -and ($opconEnv -ne ""))
@@ -572,6 +605,8 @@ Function OpConsole_Connect($logins)
                         }
                         else
                         { $suppress = opc-connect -logins $logins }
+
+                        $portMenu[$port].Option = "Exit"
                     }
                     else 
                     {
@@ -583,10 +618,11 @@ Function OpConsole_Connect($logins)
                         { $port = 1 }
                     }
                 }
+                $connection[$tls].Option = "Exit"
             }
             else 
             { 
-                Write-Host "Invalid port option entered" 
+                Write-Host "Invalid TLS option entered" 
                 $portMenu | Format-Table Id,Option | Out-Host
                 $tls = Read-Host "Enter a TLS option <id> (blank for default)"
 
