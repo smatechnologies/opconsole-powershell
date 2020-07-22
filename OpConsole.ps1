@@ -34,10 +34,10 @@ $logins += [pscustomobject]@{"id"=$logins.Count;"name"="Create New";"url"="";"us
 $logs = @()     # Array of log files
 $users = @()    # Array of api users
 $cmdArray = @() # Array to store commands entered
-$today = Get-Date -Format "yyyyMMdd"
+$lastModified = "2020-07-22"
 
 Write-Host "========================================================================================================="
-Write-Host "                            Welcome to OpConsole v0.5.$today for OpCon v19.1.1"
+Write-Host "                            Welcome to OpConsole v0.5.$lastModified for OpCon v19.1.1"
 Write-Host "=========================================================================================================`n"
 
 # Load any saved configurations
@@ -166,7 +166,7 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
     catch
     { Write-Host $_ }
 
-    Write-Host "==================================================================================`r`n"    
+    Write-Host "=============================================================================`r`n"    
 }
 
 opc-exit

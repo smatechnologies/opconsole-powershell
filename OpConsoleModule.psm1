@@ -4,13 +4,12 @@ function OpConsole_Help
     $menu += [pscustomobject]@{"Command" = "opc-connect";"Description" = "Connects/Selects an OpCon environment"}
     $menu += [pscustomobject]@{"Command" = "opc-batchuser";"Description" = "Lets you manage OpCon batch users"}
     $menu += [pscustomobject]@{"Command" = "opc-eval";"Description" = "Lets you evaluate OpCon property expressions"}
-    #$menu += [pscustomobject]@{"command" = "opc-scripts";"description" = "Lets you view or run scripts"}
     #$menu += [pscustomobject]@{"command" = "opc-ss";"description" = "Lets you manage Self Service"}
     $menu += [pscustomobject]@{"Command" = "opc-property" ;"Description" = "Lets you manage OpCon global properties"}
     $menu += [pscustomobject]@{"Command" = "opc-reports";"Description" = "View various reports in OpConsole"}
+    $menu += [pscustomobject]@{"command" = "opc-scripts";"description" = "Lets you view/run scripts from OpCon script repository"}
     $menu += [pscustomobject]@{"Command" = "opc-services";"Description" = "Manage Windows services"}
-    #$menu += [pscustomobject]@{"Command" = "opc-listall";"Description" = "Lists all commands"}
-    #$menu += [pscustomobject]@{"Command" = "opc-history";"Description" = "Shows previous commands and allows for rerurns"}
+    $menu += [pscustomobject]@{"Command" = "opc-listall";"Description" = "Lists all commands"}
     $menu | Format-Table Command,Description | Out-Host
 }
 New-Alias "opc-help" OpConsole_Help
@@ -459,7 +458,7 @@ Function OpConsole_Connect($logins)
     $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host
     $opconEnv = Read-Host "Enter OpCon environment <id> (blank to go back)"
 
-    if($opconEnv -gt 0)
+    if(($opconEnv -gt 0) -and ($opconEnv -ne ""))
     {
         $logins | ForEach-Object -Parallel { if($_.active -eq "true" -or $_.active -eq "")
                                             { $_.active = "false" }
@@ -506,44 +505,95 @@ Function OpConsole_Connect($logins)
     }
     elseif(($logins[$opconEnv].name -eq "Create New") -and ($opconEnv -ne ""))
     {
-        Write-Host "Creating new OpCon connection....."
-        $tls = Read-Host "TLS (y/n, or blank for TLS)"
-    
-        if($tls -eq "y" -or $tls -eq "")
-        { $tls = "https://" }
-        elseif($tls -eq "n") 
-        { $tls = "http://" }
-        else
-        { 
-            Write-Host "Invalid TLS option, using https"
-            $tls = "https://"
-        }
-    
-        $hostname = Read-Host "OpCon API hostname or ip"
-        $port = Read-Host "API Port (blank for 9010)"
+        Write-Host "`r`nCreating new OpCon connection....."
+
+        $connection = @()
+        $connection += [pscustomobject]@{Id=$connection.Count;Option="Exit"}
+        $connection += [pscustomobject]@{Id=$connection.Count;Option="TLS (default)"}
+        $connection += [pscustomobject]@{Id=$connection.Count;Option="Non-TLS"}
+        $connection | Format-Table Id,Option | Out-Host
+        $tls = Read-Host "Enter a TLS option <id> (blank for default)"
         
-        if($port -eq "")
-        { $port = "9010" }
+        if($tls -eq "")
+        { $tls = 1 }
     
-        $url = $tls + $hostname + ":" + $port
-        $name = Read-Host "Environment name (optional)"
-        
-        if($name -eq "")
-        { $name = $url.Substring($url.IndexOf("//")+2) }
-    
-        $user = Read-Host "Enter Username" #-AsSecureString 
-        $password = Read-Host "Enter Password" -AsSecurestring          
-        $auth = OpCon_Login -url $url -user $user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
-        
-        if($auth.id)
+        while($connection[$tls].Option -ne "Exit")
         {
-            $password = "" # Clear out password variable
-            $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$name;"url"=$url;"user"=$user;"token"=("Token " + $auth.id);"expiration"=($auth.validUntil);"release"=((OpCon_APIVersion -url $url).opConRestApiProductVersion);"active"="true"}
-            Clear-Host # Clears console
-            Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+            if(($connection[$tls].Option -eq "TLS (default)") -or ($tls -eq "") -or ($connection[$tls].Option -eq "Non-TLS"))
+            {
+                if(($connection[$tls].Option -eq "TLS (default)") -or ($tls -eq ""))
+                { $tlsSetting = "https://" }
+                elseif($connection[$tls].Option -eq "Non-TLS") 
+                { $tlsSetting = "http://" }
+            
+                $hostname = Read-Host "Enter OpCon API hostname/ip (blank for localhost)"
+                if($hostname -eq "")
+                { $hostname = "localhost" }
+
+                $portMenu = @()
+                $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="Exit"}
+                $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="9010 (default)"}
+                $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="Custom"}
+                $portMenu | Format-Table Id,Option | Out-Host
+                $port = Read-Host "Enter API Port option (blank for default)"
+                
+                if($port -eq "")
+                { $port = 1 }
+
+                While($portMenu[$port].Option -ne "Exit")
+                {
+                    # Assign default port
+                    if(($portMenu[$port].Option -eq "9010 (default)") -or ($port -eq "") -or ($portMenu[$port].Option -eq "Custom"))
+                    {
+                        if(($portMenu[$port].Option -eq "9010 (default)") -or ($port -eq ""))
+                        { $portSetting = "9010" }
+                        elseif($portMenu[$port].Option -eq "Custom")
+                        { $portSetting = "Enter custom port" }
+
+                        $url = $tlsSetting + $hostname + ":" + $portSetting
+                        $name = Read-Host "Environment name (optional)"
+                        
+                        if($name -eq "")
+                        { $name = $url.Substring($url.IndexOf("//")+2) }
+                    
+                        $user = Read-Host "Enter Username (blank for ocadm)"
+                        if($user -eq "")
+                        { $user = "ocadm" }
+
+                        $password = Read-Host "Enter Password" -AsSecurestring
+                        $auth = OpCon_Login -url $url -user $user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
+                        
+                        if($auth.id)
+                        {
+                            $password = "" # Clear out password variable
+                            $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$name;"url"=$url;"user"=$user;"token"=("Token " + $auth.id);"expiration"=($auth.validUntil);"release"=((OpCon_APIVersion -url $url).opConRestApiProductVersion);"active"="true"}
+                            Clear-Host     # Clears console
+                            Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+                        }
+                        else
+                        { $suppress = opc-connect -logins $logins }
+                    }
+                    else 
+                    {
+                        Write-Host "Invalid Port selection"
+                        $portMenu | Format-Table Id,Option | Out-Host
+                        $port = Read-Host "Enter API Port option (blank for default)"
+
+                        if($port -eq "")
+                        { $port = 1 }
+                    }
+                }
+            }
+            else 
+            { 
+                Write-Host "Invalid port option entered" 
+                $portMenu | Format-Table Id,Option | Out-Host
+                $tls = Read-Host "Enter a TLS option <id> (blank for default)"
+
+                if($tls -eq "")
+                { $tls = 1 }                
+            }
         }
-        else
-        { $suppress = opc-connect -logins $logins }
     }
 
     return $logins
