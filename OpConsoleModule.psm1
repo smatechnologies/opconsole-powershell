@@ -1,7 +1,7 @@
 function OpConsole_Help
 {
     $menu = @()
-    $menu += [pscustomobject]@{"Command" = "opc-connect";"Description" = "Connects/Selects an OpCon environment"}
+    $menu += [pscustomobject]@{"Command" = "opc-connect";"Description" = "Connects/Selects to an environment"}
     $menu += [pscustomobject]@{"Command" = "opc-batchuser";"Description" = "Lets you manage OpCon batch users"}
     $menu += [pscustomobject]@{"Command" = "opc-eval";"Description" = "Lets you evaluate OpCon property expressions"}
     #$menu += [pscustomobject]@{"command" = "opc-ss";"Description" = "Lets you manage Self Service buttons"}
@@ -353,56 +353,38 @@ New-Alias "opc-history" OpConsole_History
 
 function OpConsole_Logs($logs)
 {
-    if($logs.Count -eq 0)
+    While($selection -ne "")
     {
-        $tempLogPath = Read-Host "Enter the path to Agent or SAM logs (can be UNC)"
-        if(Test-Path $tempLogPath)
-        {
-            Get-ChildItem -Path $tempLogPath -Filter *.log | ForEach-Object{ 
-            $logs += [PSCustomObject]@{"Id"=$logs.Count+1;"Log"=$_.Name;"Location"=$tempLogPath}
-        }
-            Write-Host $logs.Count"log files found!`r`n"
-        }
-        else 
-        {
-            Write-Host "Could not access $tempLogPath"    
-        }
-    }
-    else 
-    {
-        $logs | Format-Table Id,Location,Log | Out-Host
-        $selection = Read-Host "Enter <id> to view, ENTER for new, exit to go back"
-        While($selection -ne "exit")
-        {
-            if($selection -eq "select")
-            {
-                $logs | Format-Table Id,Location,Log | Out-Host
-                $selection = Read-Host "Enter <id> to view, ENTER for new, exit to go back"    
-            }
+        $logs | Format-Table Id,Location | Out-Host
+        $selection = Read-Host "Enter log <id> (blank to exit)"
 
-            If($selection -eq "")
-            {
-                $tempLogPath = Read-Host "Enter the path to Windows Agent or SAM logs (can be UNC)"
-                if(Test-Path $tempLogPath)
-                {
-                    Get-ChildItem -Path $tempLogPath -Filter *.log | ForEach-Object{ 
-                        $logs += [PSCustomObject]@{"Id"=$logs.Count+1;"Log"=$_.Name;"Location"=$tempLogPath}
-                    }
-                    Write-Host $logs.Count"log files found!`r`n"
-                }
-                else 
-                { Write-Host "Could not access $tempLogPath" }                    
-            }
+        If($selection -eq "0")
+        {
+            $logPath = Read-Host "Enter the path to the log file"
             
-            Get-Content -Path ($logs[$selection-1].location + "\" + $logs[$selection-1].log) -Raw | Out-Host
-            $selection = Read-Host "Press Enter to refresh, 'exit' to go back, 'select' to choose another log"
-            While(($selection -ne "exit") -and ($selection -ne "select"))
+            if(Test-Path $logPath)
+            { 
+                $logs += [PSCustomObject]@{"Id"=$logs.Count;"Location"=$logPath}
+                $selection = $logs.Count-1
+            }
+            else 
+            { 
+                Write-Host "Could not access $logPath"
+                $selection = ""
+            }                    
+        }
+        
+        if($selection -ne "")
+        {
+            Get-Content -Path ($logs.Where({$_.id -eq $selection}).location) -Raw | Out-Host
+            $refresh = Read-Host "Press [Enter] or leave blank to refresh, type 'exit' to go back"
+            While($refresh -ne "exit")
             {
-                Get-Content -Path ($logs[$selection-1].location + "\" + $logs[$selection-1].log) -Raw | Out-Host
-                $selection = Read-Host "Press Enter to refresh, 'exit' to go back, 'select' to choose another log"
+                Get-Content -Path ($logs.Where({$_.id -eq $selection}).location) -Raw | Out-Host
+                $refresh = Read-Host "Press [Enter] or leave blank to refresh, type 'exit' to go back"
             }
         }
-    }   
+    }  
     
     return $logs
 }
@@ -410,13 +392,14 @@ New-Alias "opc-logs" OpConsole_Logs
 
 function OpConsole_Scripts($url,$token)
 {
-    $scriptsArray = @() 
-    $scriptName = Read-Host "Enter script name (wildcards supported *)"  
-    $getScripts = OpCon_GetScripts -url $url -token $token -scriptname $scriptName 
+    $scriptsArray = New-Object System.Collections.ArrayList
+    $scriptName = Read-Host "Enter script name (wildcards supported *, blank to exit)"
+    if($scriptName -ne "")
+    { $getScripts = OpCon_GetScripts -url $url -token $token -scriptname $scriptName }
           
     if($getScripts.Count -gt 0)
     {
-        $getScripts | ForEach-Object{ $scriptsArray += [pscustomobject]@{"Id"=$scriptsArray.Count;"Name"=$_.name;"Type"=$_.type.name;"ScriptId"=$_.id } } 
+        $getScripts | ForEach-Object{ $suppress = $scriptsArray.Add([pscustomobject]@{"Id"=$scriptsArray.Count;"Name"=$_.name;"Type"=$_.type.name;"ScriptId"=$_.id }) } 
 
         $scriptsArray | Format-Table Id,Name,Type | Out-Host
         $script = Read-Host "Enter a script <id> (blank to go back)"
@@ -433,8 +416,8 @@ function OpConsole_Scripts($url,$token)
 
             if($menu[$selection].Option -eq "View script versions")
             {
-                $versionArray = @()
-                (OpCon_GetScriptVersions -url $url -token $token -id $scriptsArray[$script].ScriptId).versions | ForEach-Object{ $versionArray += [pscustomobject]@{Version=$_.version;Comment=$_.message } }
+                $versionArray = New-Object System.Collections.ArrayList
+                (OpCon_GetScriptVersions -url $url -token $token -id $scriptsArray[$script].ScriptId).versions | ForEach-Object{ $suppress = $versionArray.Add([pscustomobject]@{Version=$_.version;Comment=$_.message }) }
 
                 $versionArray | Format-Table Version,Comment | Out-Host
                 $scriptVersion = Read-Host "Enter a script version <id> (blank to exit)"
@@ -468,7 +451,10 @@ function OpConsole_Scripts($url,$token)
         { opc-scripts -url $url -token $token }
     }
     else
-    { Write-Host "No scripts found with that name" }
+    { 
+        if($scriptName -ne "")
+        { Write-Host "No scripts found with that name"} 
+    }
 }
 New-Alias "opc-scripts" OpConsole_Scripts
 
@@ -486,7 +472,7 @@ Object with the id,url,token,expiration,release.
 
 C:\PS> opconnect"
 #>
-Function OpConsole_Connect($logins)
+Function OpConsole_OpConConnect($logins)
 { 
     $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host
     $opconEnv = Read-Host "Enter OpCon environment <id> (blank to go back)"
@@ -527,7 +513,7 @@ Function OpConsole_Connect($logins)
                 Write-Host "Active connection is"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
             }
             else
-            { $suppress = opc-connect -logins $logins }
+            { $suppress = OpConsole_OpConConnect -logins $logins }
         }
         else 
         { 
@@ -604,7 +590,7 @@ Function OpConsole_Connect($logins)
                             Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
                         }
                         else
-                        { $suppress = opc-connect -logins $logins }
+                        { $suppress = OpConsole_OpConConnect -logins $logins }
 
                         $portMenu[$port].Option = "Exit"
                     }
@@ -634,20 +620,20 @@ Function OpConsole_Connect($logins)
 
     return $logins
 }
-New-Alias "opc-connect" OpConsole_Connect
+New-Alias "opc-opconconnect" OpConsole_Connect
 New-Alias "opc-select" OpConsole_Connect
 
 Function OpConsole_ReadLogErrors($path)
 {
     If(test-path $path)
     {
-        $fileObj = @()
+        $fileObj = New-Object System.Collections.ArrayList
         $contents = Get-Content -Path $path
         For($x=0;$x -lt $contents.Count;$x++)
         {
             if(($contents[$x] -like "*failed*" -or $contents[$x] -like "*unable*") -and $contents[$x] -notlike "*processing event*")
             {
-                $fileObj += [pscustomobject]@{"Date/Time"=$contents[$x].Substring(0,23);"Reason"=$contents[$x].Substring(27).Trim()} 
+                $suppress = $fileObj.Add([pscustomobject]@{"Date/Time"=$contents[$x].Substring(0,23);"Reason"=$contents[$x].Substring(27).Trim()})
             }
         }
         return $fileObj 
@@ -663,13 +649,13 @@ Function OpConsole_ReadSAMLogEvents($path)
 {
     If(test-path $path)
     {
-        $fileObj = @()
+        $fileObj = New-Object System.Collections.ArrayList
         $contents = Get-Content -Path $path
         For($x=0;$x -lt $contents.Count;$x++)
         {
             if($contents[$x] -like "*processing event*" -and $contents[$x] -notlike "*processing events*")
             {
-                $fileObj += [pscustomobject]@{"Date/Time"=$contents[$x].Substring(0,23);"Event"=$contents[$x].Substring(43,$contents[$x].IndexOf("Received") - 44).Trim();"Location"=$contents[$x].Substring($contents[$x].IndexOf("Received")).Trim()} 
+                $suppress = $fileObj.Add([pscustomobject]@{"Date/Time"=$contents[$x].Substring(0,23);"Event"=$contents[$x].Substring(43,$contents[$x].IndexOf("Received") - 44).Trim();"Location"=$contents[$x].Substring($contents[$x].IndexOf("Received")).Trim()}) 
             }
         }
         return $fileObj 
@@ -761,11 +747,11 @@ function OpConsole_BatchUsers($url,$token)
             $roleIds = Read-Host "Enter role <id> (seperate by comma for multiple)"
             $roleArray = $roleIds.Split(",")
 
-            $roleIdArray = @()
+            $roleIdArray = New-Object System.Collections.ArrayList
             for($x=0;$x -lt $roleArray.Count;$x++)
             { 
-                $currentRole = $roles | Where-Object{ $_.id -eq $roleArray[$x] }
-                $roleIdArray += [pscustomobject]@{ "id"=$currentRole.id;"name"=$currentRole.name }  
+                $currentRole = $roles.Where({ $_.id -eq $roleArray[$x] })
+                $suppress = $roleIdArray.Add([pscustomobject]@{ "id"=$currentRole.id;"name"=$currentRole.name })
             }
             
             OpCon_CreateBatchUser -url $url -token $token -platformName $platforms[$platform].Option -loginName $loginName -password ((New-Object PSCredential "user",$userPassword).GetNetworkCredential().Password) -roleIds $roleIdArray | Out-Host
@@ -781,9 +767,9 @@ function OpConsole_BatchUsers($url,$token)
             else
             { 
                 if($os -eq "")
-                { $result = $batchUsers | Where-Object{ $_.loginName -like "*$batchUser*" } }
+                { $result = $batchUsers.Where({ $_.loginName -like "*$batchUser*" }) }
                 else 
-                { $result = $batchUsers | Where-Object{ ($_.loginName -like "*$batchUser*") -and ($_.platform.name -eq $platforms[$os].Option) } }
+                { $result = $batchUsers.Where({ ($_.loginName -like "*$batchUser*") -and ($_.platform.name -eq $platforms[$os].Option) }) }
 
                 If($result.Count -eq 0)
                 { Write-Host "No batch users with that login on the selected platform." }
@@ -848,7 +834,7 @@ function msgbox {
     }
      
     # Display the message box
-    $Return=[System.Windows.Forms.MessageBox]::Show($Message,$Title,$btn)
+    $return=[System.Windows.Forms.MessageBox]::Show($Message,$Title,$btn)
     
     # Display the option chosen by the user:
     #$Return
@@ -892,10 +878,10 @@ function OpConsole_JobsRunningByPlatformReport($url,$token)
     $agents = OpCon_GetAgent -url $url -token $token
     $agents | Format-Table Id,Name,@{Label="Platform";Expression={$_.type.description} },CurrentJobs | Out-Host
 
-    $selection = Read-Host "Enter an id to view running jobs on platform"
-    OpCon_GetDailyJob -url $url -token $token | Where-Object{ 
-                                                                ($_.startMachine.name -eq ($agents | Where-Object{$_.id -eq $selection }).name) -and ($_.status.category -eq "Running")
-                                                            } | Format-Table @{Label="Schedule";Expression={$_.schedule.name} },@{Label="Date";Expression={$_.schedule.date.ToString().SubString(0,9)} },Name -Wrap | Out-Host
+    $selection = Read-Host "Enter an id to view running jobs on platform" 
+    (OpCon_GetDailyJobFiltered -url $url -token $token -filter ("startMachine=" + ($agents.Where({$_.id -eq $selection })).name)).Where({ 
+                                                        ($_.status.category -eq "Running")
+                                                    }) | Format-Table @{Label="Schedule";Expression={$_.schedule.name} },@{Label="Date";Expression={$_.schedule.date.ToString().SubString(0,9)} },Name -Wrap | Out-Host
 
 }
 New-Alias "opc-jobsbyplatform" OpConsole_JobsRunningByPlatformReport
@@ -908,7 +894,7 @@ function OpConsole_JobsWaitingReport($url,$token)
     else
     { $date = $date | Get-Date -Format "yyyy-MM-dd" }
 
-    $jobs = OpCon_GetDailyJob -url $url -token $token -date $date | Where-Object{$_.status.description -eq "Wait Threshold/Resource Dependency"} 
+    $jobs = OpCon_GetDailyJob -url $url -token $token -date $date.Where({$_.status.description -eq "Wait Threshold/Resource Dependency"})
     
     if($jobs.Count -gt 0)
     { $jobs | Format-Table UId,@{Label="Date";Expression={$_.schedule.date.ToString().SubString(0,9)} },@{Label="Schedule";Expression={$_.schedule.name} },Name | Out-Host }
@@ -936,7 +922,7 @@ function OpConsole_JobCountByStatusReport($url,$token)
         $machines | Format-Table Id,Name,@{Label="Type";Expression={ $_.type.description } } | Out-Host
         $selectMachine = Read-Host "Enter a machine <id>"
 
-        OpCon_GetDailyJobsCountByStatus -url $url -token $token -machine ($machines | Where-Object{$_.id -eq $selectMachine} ).name  | Out-Host
+        OpCon_GetDailyJobsCountByStatus -url $url -token $token -machine ($machines.Where({$_.id -eq $selectMachine})).name  | Out-Host
     }
     elseif($subMenu[$selectSubMenu].Option -eq "Tags")
     {
@@ -951,41 +937,41 @@ New-Alias "opc-jobcountbystatus" OpConsole_JobCountByStatusReport
 function OpConsole_JobStatusReport($url,$token)
 {
     $subMenu = @()
-        $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Exit" }
-        $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "All"; OpCon = "*" }
-        $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Failed"; OpCon = "failed" }
-        #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Waiting"; OpCon = "waiting" }
-        #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "On Hold"; OpCon = "held" }
-        #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Cancelled"; OpCon = "cancelled" }
-        #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Under Review"; OpCon = "underReview" }
-        #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Skipped"; OpCon = "skipped" }
-        $subMenu | Format-Table Id,Option | Out-Host
+    $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Exit" }
+    $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "All"; OpCon = "*" }
+    $subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Failed"; OpCon = "failed" }
+    #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Waiting"; OpCon = "waiting" }
+    #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "On Hold"; OpCon = "held" }
+    #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Cancelled"; OpCon = "cancelled" }
+    #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Under Review"; OpCon = "underReview" }
+    #$subMenu += [PSCustomObject]@{ id = $subMenu.Count; Option = "Skipped"; OpCon = "skipped" }
+    $subMenu | Format-Table Id,Option | Out-Host
 
-        $status = Read-Host "Enter a status <id>" # (comma seperated)"
-        $date = Read-Host "Enter a schedule date (yyyy-mm-dd, blank for today)"
-        
-        if($date -eq "")
-        { $date = Get-Date -Format "yyyy-MM-dd" }
-        else
-        { $date = $date | Get-Date -Format "yyyy-MM-dd" }
+    $status = Read-Host "Enter a status <id>" # (comma seperated)"
+    $date = Read-Host "Enter a schedule date (yyyy-mm-dd, blank for today)"
+    
+    if($date -eq "")
+    { $date = Get-Date -Format "yyyy-MM-dd" }
+    else
+    { $date = $date | Get-Date -Format "yyyy-MM-dd" }
 
-        $result = OpCon_Reports -url $url -token $token -status $subMenu[$status].OpCon
+    $result = OpCon_Reports -url $url -token $token -status $subMenu[$status].OpCon
         
         if($result.Count -gt 0)
         { 
-            $result = $result | Where-Object{$date -eq ( $_.schedule.date | Get-Date -Format "yyyy-MM-dd") } | Where-Object{ $_.jobType.description -ne "Container" } 
+            $result = $result.Where({ $date -eq ( $_.schedule.date | Get-Date -Format "yyyy-MM-dd")} ).Where({ $_.jobType.description -ne "Container" })
 
-            $resultMenu = @()
-            $result | ForEach-Object{ $resultMenu += [pscustomobject]@{Id=$resultMenu.Count;Date=$date;JobId=$_.id;"Path"=$_.uniqueJobId;"Machine"=$_.startMachine.name;Status=$_.status.description} }
+            $resultMenu = New-Object System.Collections.ArrayList
+            $result | ForEach-Object{ $suppress = $resultMenu.Add([pscustomobject]@{Id=$resultMenu.Count;Date=$date;JobId=$_.id;"Path"=$_.uniqueJobId;"Machine"=$_.startMachine.name;Status=$_.status.description}) }
             $resultMenu | Format-Table Id,Date,Machine,Status,@{Label="Schedule|Path";Expression={$_.Path} } -Wrap | Out-Host
 
             $outputSelection = Read-Host "Enter an option to view job output <id> (blank to go back)"
             if($outputSelection -ne "")
             {
                 $jobNumber = (OpCon_GetDailyJob -url $url -token $token -id ($resultMenu[$outputSelection].JobId)).jobNumber
-                $jobOutput = (OpCon_GetJobOutput -url $url -token $token -jobNumber $jobnumber).jobInstanceActionItems[0].data 
+                $global:jobOutput = (OpCon_GetJobOutput -url $url -token $token -jobNumber $jobnumber).jobInstanceActionItems[0].data 
                 $global:jobOutput | Out-Host
-                Write-Host "Job output saved to variable `$jobOutput"
+                Write-Host "Job output saved to variable `$global:jobOutput"
             }
             $suppress = opc-reports -url $url -token $token
         }
@@ -993,3 +979,21 @@ function OpConsole_JobStatusReport($url,$token)
         { Write-Host "No jobs found with that status on $date" }
 }
 New-Alias "opc-jobstatus" OpConsole_JobStatusReport
+
+function Opconsole_SQLConnect($sqlLogins)
+{
+    $sqlLogins | Format-Table Id,SQLName,DB,User,Active | Out-Host
+    $sqlConnection = Read-Host "Enter a sql connection <id>"
+    
+    if($sqlLogins[$sqlConnection].user -ne "")
+    { 
+        $sqlLogins | Where-Object{ $_.active -eq $true } | ForEach-Object{ $_.active = $false }
+        $password = Read-Host "Enter user password" -AsSecureString 
+        $sqlLogins[$sqlConnection].password = ((New-Object PSCredential "user",$password).GetNetworkCredential().Password) 
+        $password = ""
+        $sqlLogins[$sqlConnection].active = $true
+    }
+
+    return $sqlLogins
+}
+New-Alias "opc-sqlconnect" OpConsole_SQLConnect

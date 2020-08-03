@@ -1,6 +1,7 @@
 ﻿param(
-    $opconmodule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConModule.psm1")
-    ,$opconsolemodule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConsoleModule.psm1")
+    $opconModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConModule.psm1")
+    ,$opconsoleModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConsoleModule.psm1")
+    ,$customModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\CustomModule.psm1")
     ,$consoleConfig = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConsole.ini")
 )
 
@@ -22,6 +23,18 @@ else
     Exit
 }
 
+# Import Custom module
+if($customModule -ne "")
+{ 
+    if(Test-Path $customModule)
+    { Import-Module -Name $customModule -Force }
+    else
+    {
+        MsgBox -Title "Error" -Message "Unable to import custom module!" 
+        Exit
+    }
+}
+
 # Clear the console screen to start
 Clear-Host
 
@@ -29,28 +42,32 @@ Clear-Host
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 OpCon_SkipCerts # Skips any self signed certificates
 
-$logins = @()   # Array to manage OpCon env's
+$logins = @()     # Array to manage OpCon env's
 $logins += [pscustomobject]@{"id"=$logins.Count;"name"="Create New";"url"="";"user"="";"token"="";"expiration"="";"release"="";"active"=""}
-$logs = @()     # Array of log files
-$users = @()    # Array of api users
-$cmdArray = @() # Array to store commands entered
-$lastModified = "2020-07-22"
+$logs = @()       # Array of log files
+$logs += [pscustomobject]@{"id"=$logs.Count;"Location"="Create New" }
+$users = @()      # Array of api users
+$sqlLogins = @()        # Array of sql servers and users
+$sqlusers = @()   # Array of sql users 
+$cmdArray = @()   # Array to store commands entered
+$lastModified = "2020-08-03" # Last tested
+$opconVersion = "19.1.1"     # Last tested OpCon Version
 
 Write-Host "========================================================================================================="
-Write-Host "                            Welcome to OpConsole v0.5.$lastModified for OpCon v19.1.1"
+Write-Host "                            Welcome to OpConsole v0.7.$lastModified for OpCon v$opconVersion"
 Write-Host "=========================================================================================================`n"
 
 # Load any saved configurations
 if(test-path $consoleConfig)
 {
     Get-Content $consoleConfig | ForEach-Object { 
-                                                    #if($_ -like "LOG*")
-                                                    #{ $logs += [pscustomobject]@{"id"=$logs.Count;"Log"=(($_.Split("="))[1] | Split-Path -Leaf);"Location"=(($_.Split("="))[1] | Split-Path -Parent) } }
+                                                    if($_ -like "LOG*")
+                                                    { $logs += [pscustomobject]@{ "id"=$logs.Count;"Location"=($_.Split("="))[1] } }
                                                     
-                                                    if($_ -like "USER*")
-                                                    { $users += [pscustomobject]@{ "id"=$users.Count;"user"=$_.Substring(5,$_.IndexOf("=")-5);"environment"=($_.Split("="))[1] } }
+                                                    if($_ -like "OPCON-USER*")
+                                                    { $users += [pscustomobject]@{ "id"=$users.Count;"user"=$_.Substring($_.IndexOf("USER_")+5,$_.IndexOf("=")-($_.IndexOf("USER_")+5));"environment"=($_.Split("="))[1] } }
                                                     
-                                                    if($_ -like "CONNECT*")
+                                                    if($_ -like "OPCON_*")
                                                     { 
                                                         $version = ""
                                                         if($logins.Count -ge 1)
@@ -58,6 +75,12 @@ if(test-path $consoleConfig)
                                                         
                                                         $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$_.Substring($_.IndexOf("_")+1,$_.IndexOf("=")-($_.IndexOf("_")+1));"url"=($_.Split("="))[1];"user"="";"token"="";"expiration"="";"release"=$version;"active"="false" } 
                                                     }
+
+                                                    if($_ -like "SQL-SERVER_*")
+                                                    { $sqlLogins += [pscustomobject]@{ "id"=$sqlLogins.Count;"server"=$_.Substring($_.IndexOf("=")+1,$_.IndexOf(",")-($_.IndexOf("=")+1));"sqlname"=$_.Substring($_.IndexOf("_")+1,$_.IndexOf("=")-($_.IndexOf("_")+1));"user"= "";db=$_.Substring($_.IndexOf(",")+1);"password"="";"active"=$false } }
+
+                                                    if($_ -like "SQL-USER_*")
+                                                    { $sqlusers += [pscustomobject]@{ "id"=$sqlusers.Count;"user"=$_.Substring($_.IndexOf("=")+1);"sqlname"= $_.Substring($_.IndexOf("_")+1,$_.IndexOf("=")-($_.IndexOf("_")+1)) } }
                                                 }
 
     # Add the users to the appropriate environment
@@ -69,7 +92,7 @@ if(test-path $consoleConfig)
                                     $loginRelease = $_.release
 
                                     $allUsers = $users | Where-Object{ $_.environment -eq $loginName}
-                                    if($allUsers.Count -gt 1)
+                                    if($allUsers.Count -gt 0)
                                     {
                                         For($x=0;$x -lt $allUsers.Count;$x++)
                                         {
@@ -79,9 +102,27 @@ if(test-path $consoleConfig)
                                             { $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$loginName;"url"=$loginURL;"user"=$allUsers[$x].user;"token"="";"expiration"="";"release"=$loginRelease;"active"="false" } }
                                         }
                                     }
-                                    elseif($allUsers.Count -eq 1)
-                                    { ($logins | Where-Object{$_.name -eq $allUsers.environment}).user = $allUsers.user }
                                 }
+    }
+
+    if($sqlusers.Count -gt 0 -and $sqlLogins.Count -gt 0)
+    {
+        $sqlLogins | ForEach-Object{
+                                $sqlserver = $_.sqlname
+                                $sqlserverConnection = $_.server
+                                $sqldb = $_.db
+                                $allsqlUsers = $sqlusers | Where-Object{ $_.sqlname -eq $sqlserver }
+                                if($allsqlUsers.Count -gt 0)
+                                {
+                                    For($x=0;$x -lt $allsqlUsers.Count;$x++)
+                                    {
+                                        if($x -eq 0)
+                                        { ($sqlLogins | Where-Object{ $_.sqlname -eq $allsqlUsers[$x].sqlname }).user = $allsqlUsers[$x].user }
+                                        else
+                                        { $sqlLogins += [pscustomobject]@{id=$sqlLogins.Count;server=$sqlserverConnection;db=$sqlDB;sqlname=$allsqlUsers[$x].sqlname;user=$allsqlUsers[$x].user;password="";active=$false} }
+                                    }
+                                }
+                            }
     }
 }
 else
@@ -90,10 +131,14 @@ else
 # Display logins
 if($logins.Count -gt 1)
 { 
-    Write-Host "Imported OpCon Environments:"
+    Write-Host "Imported Environments:"
     $logins | Where-Object{ $_.name -ne "Create New" } | Format-Table Name,URL,User,Release | Out-Host 
 }
 
+if($sqlLogins.Count -gt 0)
+{ $sqlLogins | Format-Table SQLName,Server,DB,User | Out-Host }
+
+Write-Host "=============================================================================`r`n"
 Write-Host "For help use 'opc-help', to connect to OpCon use 'opc-connect'`n"
 
 $rerun = ""
@@ -122,7 +167,6 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
         Switch -Wildcard ($command)
         {
             "opc-clear"         { Clear-Host; break }
-            "opc-connect"       { $logins = opc-connect -logins $logins; break }
             "opc-connect-view"  { $logins | Format-Table Id,Name,URL,User,Expiration,Release,Active | Out-Host; break }
             "opc-exit"          { opc-exit; break }
             "opc-help"          { opc-help; break }
@@ -131,13 +175,33 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
             "opc-logoff"        { opc-exit; break }
             "opc-reload"        {
                                     Clear-Host
-                                    Import-Module -Name $opconmodule -Force
-                                    Import-Module -Name $opconsolemodule -Force
+                                    Import-Module -Name $opconModule -Force
+                                    Import-Module -Name $opconsoleModule -Force
+                                    Import-Module -Name $customModule -Force
                                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                                     OpCon_SkipCerts # Skips any self signed certificates
+                                    
                                     break
                                 }
             "opc-services"      { opc-services; break }
+            "opc-connect"      { 
+                                    $menu = @()
+                                    $menu += [pscustomobject]@{Id=$menu.Count;Option="Exit"}
+                                    $menu += [pscustomobject]@{Id=$menu.Count;Option="OpCon"}
+                                    
+                                    if($sqlLogins.Count -gt 0)
+                                    { $menu += [pscustomobject]@{Id=$menu.Count;Option="MS SQL"} }
+                                
+                                    $menu | Format-Table Id,Option | Out-Host
+                                
+                                    $selection = Read-Host "Enter a connection option <id>"
+                                    if($menu[$selection].Option -eq "OpCon")
+                                    { $logins = OpConsole_OpConConnect -logins $logins }
+                                    elseif($menu[$selection].Option -eq "MS SQL")
+                                    { $sqlLogins = OpConsole_SQLConnect -sqlLogins $sqlLogins }
+    
+                                    break 
+                                }
             "opc-*"             {   
                                     $activeConnection = $logins | Where-Object{ $_.active -eq "true" }
                                     if($activeConnection)
@@ -160,6 +224,21 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
                                     }
                                     break
                                 }
+            "*sql-*"            {
+                                    $activeConnection = $sqlLogins | Where-Object{ $_.active -eq "true" }
+                                    if($activeConnection)
+                                    {
+                                        $session = $sqlLogins | Where-Object{ $_.active -eq "true" }
+                                        Invoke-Expression -Command ("$command -server " + $session.server + " -user '" + $session.user + "' -userPassword " + $session.password + " -db '" + $session.db + "'") | Out-Host
+                                    }
+                                    else
+                                    {
+                                        Write-Host "`r`n*****Must connect to a SQL environment first!*****"
+                                        $suppress = opc-connect2 -logins $logins -sqlLogins $sqlLogins
+                                    }
+                                    break
+                                }
+            "custom-*"          { Invoke-Expression -Command $command | Out-Host; break }
             Default             { Invoke-Expression -Command $command | Out-Host; break }
         }
     }
