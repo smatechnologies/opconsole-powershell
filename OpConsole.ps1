@@ -47,10 +47,11 @@ $logins += [pscustomobject]@{"id"=$logins.Count;"name"="Create New";"url"="";"us
 $logs = @()       # Array of log files
 $logs += [pscustomobject]@{"id"=$logs.Count;"Location"="Create New" }
 $users = @()      # Array of api users
-$sqlLogins = @()        # Array of sql servers and users
+$sqlLogins = @()  # Array of sql servers and users
+$sqlLogins += [PSCustomObject]@{ "id"=$sqlLogins.Count;"server"="";"sqlname"="Create New";"user"= "";db="";"password"="";"active"=$false }
 $sqlusers = @()   # Array of sql users 
 $cmdArray = @()   # Array to store commands entered
-$lastModified = "2020-08-03" # Last tested
+$lastModified = "2020-08-05" # Last tested
 $opconVersion = "19.1.1"     # Last tested OpCon Version
 
 Write-Host "========================================================================================================="
@@ -64,10 +65,10 @@ if(test-path $consoleConfig)
                                                     if($_ -like "LOG*")
                                                     { $logs += [pscustomobject]@{ "id"=$logs.Count;"Location"=($_.Split("="))[1] } }
                                                     
-                                                    if($_ -like "OPCON-USER*")
-                                                    { $users += [pscustomobject]@{ "id"=$users.Count;"user"=$_.Substring($_.IndexOf("USER_")+5,$_.IndexOf("=")-($_.IndexOf("USER_")+5));"environment"=($_.Split("="))[1] } }
+                                                    if($_ -like "OPCON-USER_*")
+                                                    { $users += [pscustomobject]@{ "id"=$users.Count;"user"=($_.Split("="))[1];"environment"=$_.Substring($_.IndexOf("USER_")+5,$_.IndexOf("=")-($_.IndexOf("USER_")+5)) } }
                                                     
-                                                    if($_ -like "OPCON_*")
+                                                    if($_ -like "OPCON-SERVER_*")
                                                     { 
                                                         $version = ""
                                                         if($logins.Count -ge 1)
@@ -108,21 +109,21 @@ if(test-path $consoleConfig)
     if($sqlusers.Count -gt 0 -and $sqlLogins.Count -gt 0)
     {
         $sqlLogins | ForEach-Object{
-                                $sqlserver = $_.sqlname
-                                $sqlserverConnection = $_.server
-                                $sqldb = $_.db
-                                $allsqlUsers = $sqlusers | Where-Object{ $_.sqlname -eq $sqlserver }
-                                if($allsqlUsers.Count -gt 0)
-                                {
-                                    For($x=0;$x -lt $allsqlUsers.Count;$x++)
-                                    {
-                                        if($x -eq 0)
-                                        { ($sqlLogins | Where-Object{ $_.sqlname -eq $allsqlUsers[$x].sqlname }).user = $allsqlUsers[$x].user }
-                                        else
-                                        { $sqlLogins += [pscustomobject]@{id=$sqlLogins.Count;server=$sqlserverConnection;db=$sqlDB;sqlname=$allsqlUsers[$x].sqlname;user=$allsqlUsers[$x].user;password="";active=$false} }
+                                        $sqlserver = $_.sqlname
+                                        $sqlserverConnection = $_.server
+                                        $sqldb = $_.db
+                                        $allsqlUsers = $sqlusers | Where-Object{ $_.sqlname -eq $sqlserver }
+                                        if($allsqlUsers.Count -gt 0)
+                                        {
+                                            For($x=0;$x -lt $allsqlUsers.Count;$x++)
+                                            {
+                                                if($x -eq 0)
+                                                { ($sqlLogins | Where-Object{ $_.sqlname -eq $allsqlUsers[$x].sqlname }).user = $allsqlUsers[$x].user }
+                                                else
+                                                { $sqlLogins += [pscustomobject]@{id=$sqlLogins.Count;server=$sqlserverConnection;db=$sqlDB;sqlname=$allsqlUsers[$x].sqlname;user=$allsqlUsers[$x].user;password="";active=$false} }
+                                            }
+                                        }
                                     }
-                                }
-                            }
     }
 }
 else
@@ -132,11 +133,11 @@ else
 if($logins.Count -gt 1)
 { 
     Write-Host "Imported Environments:"
-    $logins | Where-Object{ $_.name -ne "Create New" } | Format-Table Name,URL,User,Release | Out-Host 
+    $logins.Where({ $_.name -ne "Create New" }) | Format-Table Name,URL,User,Release | Out-Host 
 }
 
 if($sqlLogins.Count -gt 0)
-{ $sqlLogins | Format-Table SQLName,Server,DB,User | Out-Host }
+{ $sqlLogins.Where({$_.sqlname -ne "Create New"}) | Format-Table SQLName,Server,DB,User | Out-Host }
 
 Write-Host "=============================================================================`r`n"
 Write-Host "For help use 'opc-help', to connect to OpCon use 'opc-connect'`n"
@@ -196,9 +197,9 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
                                 
                                     $selection = Read-Host "Enter a connection option <id>"
                                     if($menu[$selection].Option -eq "OpCon")
-                                    { $logins = OpConsole_OpConConnect -logins $logins }
+                                    { $logins = OpConsole_OpConConnect -logins $logins -configPath $consoleConfig }
                                     elseif($menu[$selection].Option -eq "MS SQL")
-                                    { $sqlLogins = OpConsole_SQLConnect -sqlLogins $sqlLogins }
+                                    { $sqlLogins = OpConsole_SQLConnect -sqlLogins $sqlLogins -configPath $consoleConfig }
     
                                     break 
                                 }

@@ -472,7 +472,7 @@ Object with the id,url,token,expiration,release.
 
 C:\PS> opconnect"
 #>
-Function OpConsole_OpConConnect($logins)
+Function OpConsole_OpConConnect($logins,$configPath)
 { 
     $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host
     $opconEnv = Read-Host "Enter OpCon environment <id> (blank to go back)"
@@ -513,7 +513,7 @@ Function OpConsole_OpConConnect($logins)
                 Write-Host "Active connection is"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
             }
             else
-            { $suppress = OpConsole_OpConConnect -logins $logins }
+            { $suppress = OpConsole_OpConConnect -logins $logins -configPath $configPath }
         }
         else 
         { 
@@ -590,7 +590,7 @@ Function OpConsole_OpConConnect($logins)
                             Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
                         }
                         else
-                        { $suppress = OpConsole_OpConConnect -logins $logins }
+                        { $suppress = OpConsole_OpConConnect -logins $logins -configPath $configPath }
 
                         $portMenu[$port].Option = "Exit"
                     }
@@ -614,6 +614,20 @@ Function OpConsole_OpConConnect($logins)
 
                 if($tls -eq "")
                 { $tls = 1 }                
+            }
+
+            $menu = New-Object System.Collections.ArrayList
+            $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="No"})
+            $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="Yes"})
+            $menu | Format-Table Id,Option | Out-Host
+
+            $save = Read-Host "Save connection to OpConsole.ini?"
+            # save to file here
+            if($menu[$save].Option -eq "Yes")
+            {
+                "`r`n# Additional OpCon Connection" | Out-File -Append -FilePath $configPath
+                ("OPCON-SERVER_" + $logins[$logins.Count-1].name + "=" + $logins[$logins.Count-1].url) | Out-File -Append -FilePath $configPath
+                ("OPCON-USER_" + $logins[$logins.Count-1].name + "=" + $logins[$logins.Count-1].user) | Out-File -Append -FilePath $configPath
             }
         }
     }
@@ -980,18 +994,50 @@ function OpConsole_JobStatusReport($url,$token)
 }
 New-Alias "opc-jobstatus" OpConsole_JobStatusReport
 
-function Opconsole_SQLConnect($sqlLogins)
+function Opconsole_SQLConnect($sqlLogins,$configPath)
 {
     $sqlLogins | Format-Table Id,SQLName,DB,User,Active | Out-Host
-    $sqlConnection = Read-Host "Enter a sql connection <id>"
+    $sqlConnection = Read-Host "Enter a sql connection <id> (blank to go back)"
     
-    if($sqlLogins[$sqlConnection].user -ne "")
+    if(($sqlLogins[$sqlConnection].user -ne "") -and ($sqlLogins[$sqlConnection].SQLName -ne "Create New") -and ($sqlConnection -ne ""))
     { 
-        $sqlLogins | Where-Object{ $_.active -eq $true } | ForEach-Object{ $_.active = $false }
-        $password = Read-Host "Enter user password" -AsSecureString 
-        $sqlLogins[$sqlConnection].password = ((New-Object PSCredential "user",$password).GetNetworkCredential().Password) 
-        $password = ""
+        $sqlLogins.Where({ $_.active -eq $true }) | ForEach-Object{ $_.active = $false }
+        if($sqlLogins[$sqlConnection].user -ne "")
+        {
+            $password = Read-Host "Enter user password" -AsSecureString 
+            $sqlLogins[$sqlConnection].password = ((New-Object PSCredential "user",$password).GetNetworkCredential().Password) 
+            $password = ""
+        }
         $sqlLogins[$sqlConnection].active = $true
+    }
+    elseif(($sqlLogins[$sqlConnection].SQLName -eq "Create New") -and ($sqlConnection -ne "")) 
+    {
+        $newServer = Read-Host "Enter a new sql server (dns or ip)"
+        $newServerName = Read-Host "Enter a new name for the server"
+        $newDB = Read-Host "Enter the db name"
+        $newUser = Read-Host "Enter the user name (blank for Win Auth)"
+
+        $menu = New-Object System.Collections.ArrayList
+        $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="No"})
+        $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="Yes"})
+        $menu | Format-Table Id,Option | Out-Host
+
+        $setActive = Read-Host "Set this connection as active?"
+        if($menu[$setActive].Option -eq "Yes")
+        { $sqlLogins += [pscustomobject]@{"Id"=$sqlLogins.Count;"server"=$newServer;"sqlname"=$newServerName;"db"=$newDB;"user"=$newUser;"active"=$true} }
+        else
+        { $sqlLogins += [pscustomobject]@{"Id"=$sqlLogins.Count;"server"=$newServer;"sqlname"=$newServerName;"db"=$newDB;"user"=$newUser;"active"=$false} }
+
+        $menu | Format-Table Id,Option | Out-Host
+        $save = Read-Host "Save connection to OpConsole.ini?"
+        
+        # save to file here
+        if($menu[$save].Option -eq "Yes")
+        {
+            "`r`n# Additional SQL Connection" | Out-File -Append -FilePath $configPath
+            ("SQL-SERVER_" + $sqlLogins[$sqlLogins.Count-1].sqlname + "=" + $sqlLogins[$sqlLogins.Count-1].server + "," + $sqlLogins[$sqlLogins.Count-1].db) | Out-File -Append -FilePath $configPath
+            ("SQL-USER_" + $sqlLogins[$sqlLogins.Count-1].sqlname + "=" + $sqlLogins[$sqlLogins.Count-1].user) | Out-File -Append -FilePath $configPath
+        }
     }
 
     return $sqlLogins
