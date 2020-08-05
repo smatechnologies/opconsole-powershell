@@ -9,6 +9,14 @@ A console-like program for OpCon.  Allows you to view reports and do other admin
 # Instructions
 To run this program you must have all the files in the same directory.  The "config" file is not required but makes connecting to environments must faster and easier when starting each time.
 
+To connect to an OpCon or SQL environment use:
+
+```
+opc-connect
+```
+
+You are also able to create new connections at the prompts and save them to the configuration file.
+
 To add "OpConsole" to the Windows Terminal app, open the Settings and add the following lines under Profiles -> List:
 
 ```
