@@ -43,16 +43,18 @@ Clear-Host
 OpCon_SkipCerts # Skips any self signed certificates
 
 $logins = @()     # Array to manage OpCon env's
-$logins += [pscustomobject]@{"id"=$logins.Count;"name"="Create New";"url"="";"user"="";"token"="";"expiration"="";"release"="";"active"=""}
 $logs = @()       # Array of log files
-$logs += [pscustomobject]@{"id"=$logs.Count;"Location"="Create New" }
 $users = @()      # Array of api users
 $sqlLogins = @()  # Array of sql servers and users
-$sqlLogins += [PSCustomObject]@{ "id"=$sqlLogins.Count;"server"="";"sqlname"="Create New";"user"= "";db="";"password"="";"active"=$false }
 $sqlusers = @()   # Array of sql users 
 $cmdArray = @()   # Array to store commands entered
-$lastModified = "2020-08-05" # Last tested
+$lastModified = "2020-08-07" # Last tested
 $opconVersion = "19.1.1"     # Last tested OpCon Version
+
+# Initialize arrays with "create new" option
+$logins += [pscustomobject]@{"id"=$logins.Count;"name"="Create New";"url"="";"user"="";"token"="";"expiration"="";"release"="";"active"=""}
+$logs += [pscustomobject]@{"id"=$logs.Count;"Location"="Create New" }
+$sqlLogins += [PSCustomObject]@{ "id"=$sqlLogins.Count;"server"="";"sqlname"="Create New";"user"= "";db="";"password"="";"active"=""}
 
 Write-Host "============================================================================="
 Write-Host "      Welcome to OpConsole v0.7.$lastModified for OpCon v$opconVersion"
@@ -78,7 +80,7 @@ if(test-path $consoleConfig)
                                                     }
 
                                                     if($_ -like "SQL-SERVER_*")
-                                                    { $sqlLogins += [pscustomobject]@{ "id"=$sqlLogins.Count;"server"=$_.Substring($_.IndexOf("=")+1,$_.IndexOf(",")-($_.IndexOf("=")+1));"sqlname"=$_.Substring($_.IndexOf("_")+1,$_.IndexOf("=")-($_.IndexOf("_")+1));"user"= "";db=$_.Substring($_.IndexOf(",")+1);"password"="";"active"=$false } }
+                                                    { $sqlLogins += [pscustomobject]@{ "id"=$sqlLogins.Count;"server"=$_.Substring($_.IndexOf("=")+1,$_.IndexOf(",")-($_.IndexOf("=")+1));"sqlname"=$_.Substring($_.IndexOf("_")+1,$_.IndexOf("=")-($_.IndexOf("_")+1));"user"= "";db=$_.Substring($_.IndexOf(",")+1);"password"="";"active"="false" } }
 
                                                     if($_ -like "SQL-USER_*")
                                                     { $sqlusers += [pscustomobject]@{ "id"=$sqlusers.Count;"user"=$_.Substring($_.IndexOf("=")+1);"sqlname"= $_.Substring($_.IndexOf("_")+1,$_.IndexOf("=")-($_.IndexOf("_")+1)) } }
@@ -120,7 +122,7 @@ if(test-path $consoleConfig)
                                                 if($x -eq 0)
                                                 { ($sqlLogins | Where-Object{ $_.sqlname -eq $allsqlUsers[$x].sqlname }).user = $allsqlUsers[$x].user }
                                                 else
-                                                { $sqlLogins += [pscustomobject]@{id=$sqlLogins.Count;server=$sqlserverConnection;db=$sqlDB;sqlname=$allsqlUsers[$x].sqlname;user=$allsqlUsers[$x].user;password="";active=$false} }
+                                                { $sqlLogins += [pscustomobject]@{id=$sqlLogins.Count;server=$sqlserverConnection;db=$sqlDB;sqlname=$allsqlUsers[$x].sqlname;user=$allsqlUsers[$x].user;password="";active="false"} }
                                             }
                                         }
                                     }
@@ -169,11 +171,10 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
         {
             "opc-clear"         { Clear-Host; break }
             "opc-connect-view"  { $logins | Format-Table Id,Name,URL,User,Expiration,Release,Active | Out-Host; break }
-            "opc-exit"          { opc-exit; break }
+            "opc-exit"          { Clear-Variable *; opc-exit; break }
             "opc-help"          { opc-help; break }
             "opc-history"       { $rerun = opc-history -cmdArray $cmdArray; break }
             "opc-logs"          { $logs = opc-logs -logs $logs; break }
-            "opc-logoff"        { opc-exit; break }
             "opc-reload"        {
                                     Clear-Host
                                     Import-Module -Name $opconModule -Force
@@ -203,39 +204,39 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
     
                                     break 
                                 }
-            "opc-*"             {   
-                                    $activeConnection = $logins | Where-Object{ $_.active -eq "true" }
-                                    if($activeConnection)
-                                    {
-                                        if(OpConsole_CheckExpiration -connection $activeConnection)
-                                        {
-                                            $session = $logins | Where-Object{ $_.active -eq "true" }
-                                            Invoke-Expression -Command ("$command -url " + $session.url + " -token '" + $session.token + "'") | Out-Host
-                                        }
-                                        else 
-                                        {
-                                            $logins | Where-Object{ $_.active -eq "true";$_.token = "" } | Out-Null
-                                            OpConsole_OpConConnect -logins $logins -configPath $consoleConfig | Out-Null
-                                        }
-                                    }
-                                    else
-                                    {
-                                        Write-Host "`r`n*****Must connect to an OpCon environment first!*****"
-                                        OpConsole_OpConConnect -logins $logins -configPath $consoleConfig | Out-Null
-                                    }
-                                    break
-                                }
             "*sql-*"            {
-                                    $activeConnection = $sqlLogins | Where-Object{ $_.active -eq "true" }
+                                    $activeConnection = $sqlLogins.Where({ $_.active -eq "true" })
                                     if($activeConnection)
                                     {
-                                        $session = $sqlLogins | Where-Object{ $_.active -eq "true" }
+                                        $session = $sqlLogins.Where({ $_.active -eq "true" })
                                         Invoke-Expression -Command ("$command -server " + $session.server + " -user '" + $session.user + "' -userPassword " + $session.password + " -db '" + $session.db + "'") | Out-Host
                                     }
                                     else
                                     {
                                         Write-Host "`r`n*****Must connect to a SQL environment first!*****"
-                                        OpConsole_SQLConnect -sqlLogins $sqlLogins -configPath $consoleConfig | Out-Null
+                                        $sqlLogins = OpConsole_SQLConnect -sqlLogins $sqlLogins -configPath $consoleConfig
+                                    }
+                                    break
+                                }
+            "opc-*"             {   
+                                    $activeConnection = $logins.Where({ $_.active -eq "true" })
+                                    if($activeConnection)
+                                    {
+                                        if(OpConsole_CheckExpiration -connection $activeConnection)
+                                        {
+                                            $session = $logins.Where({ $_.active -eq "true" })
+                                            Invoke-Expression -Command ("$command -url " + $session.url + " -token '" + $session.token + "'") | Out-Host
+                                        }
+                                        else 
+                                        {
+                                            $logins.Where({ $_.active -eq "true";$_.token = "" }) | Out-Null
+                                            $logins = OpConsole_OpConConnect -logins $logins -configPath $consoleConfig
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Write-Host "`r`n*****Must connect to an OpCon environment first!*****"
+                                        $logins = OpConsole_OpConConnect -logins $logins -configPath $consoleConfig
                                     }
                                     break
                                 }

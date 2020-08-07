@@ -313,7 +313,7 @@ New-Alias "opc-buttons" OpConsole_SelfService
 function OpConsole_Exit
 {
     Clear-History
-    Clear-Host 
+    Clear-Host
     $PSDefaultParameterValues.Remove("Invoke-RestMethod:SkipCertificateCheck")
     Exit
 }
@@ -530,112 +530,115 @@ Function OpConsole_OpConConnect($logins,$configPath)
     else
     { $opconEnv = -1 }
     
-    if($logins[$opconEnv].name -eq "Create New")
+    if($opconEnv -ne "")
     {
-        Write-Host "`r`nCreating new OpCon connection....."
-
-        $connection = @()
-        $connection += [pscustomobject]@{Id=$connection.Count;Option="Exit"}
-        $connection += [pscustomobject]@{Id=$connection.Count;Option="TLS (default)"}
-        $connection += [pscustomobject]@{Id=$connection.Count;Option="Non-TLS"}
-        $connection | Format-Table Id,Option | Out-Host
-        $tls = Read-Host "Enter a TLS option <id> (blank for default)"
-        
-        if($tls -eq "")
-        { $tls = 1 }
-    
-        while($connection[$tls].Option -ne "Exit")
+        if($logins[$opconEnv].name -eq "Create New")
         {
-            if(($connection[$tls].Option -eq "TLS (default)") -or ($tls -eq "") -or ($connection[$tls].Option -eq "Non-TLS"))
-            {
-                if(($connection[$tls].Option -eq "TLS (default)") -or ($tls -eq ""))
-                { $tlsSetting = "https://" }
-                elseif($connection[$tls].Option -eq "Non-TLS") 
-                { $tlsSetting = "http://" }
+            Write-Host "`r`nCreating new OpCon connection....."
+
+            $connection = @()
+            $connection += [pscustomobject]@{Id=$connection.Count;Option="Exit"}
+            $connection += [pscustomobject]@{Id=$connection.Count;Option="TLS (default)"}
+            $connection += [pscustomobject]@{Id=$connection.Count;Option="Non-TLS"}
+            $connection | Format-Table Id,Option | Out-Host
+            $tls = Read-Host "Enter a TLS option <id> (blank for default)"
             
-                $hostname = Read-Host "Enter OpCon API hostname/ip (blank for localhost)"
-                if($hostname -eq "")
-                { $hostname = "localhost" }
-
-                $portMenu = @()
-                $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="Exit"}
-                $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="9010 (default)"}
-                $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="Custom"}
-                $portMenu | Format-Table Id,Option | Out-Host
-                $port = Read-Host "Enter API Port option (blank for default)"
-                
-                if($port -eq "")
-                { $port = 1 }
-
-                While($portMenu[$port].Option -ne "Exit")
-                {
-                    # Assign default port
-                    if(($portMenu[$port].Option -eq "9010 (default)") -or ($port -eq "") -or ($portMenu[$port].Option -eq "Custom"))
-                    {
-                        if(($portMenu[$port].Option -eq "9010 (default)") -or ($port -eq ""))
-                        { $portSetting = "9010" }
-                        elseif($portMenu[$port].Option -eq "Custom")
-                        { $portSetting = "Enter custom port" }
-
-                        $url = $tlsSetting + $hostname + ":" + $portSetting
-                        $name = Read-Host "Environment name (optional)"
-                        
-                        if($name -eq "")
-                        { $name = $url.Substring($url.IndexOf("//")+2) }
-                    
-                        $user = Read-Host "Enter Username (blank for ocadm)"
-                        if($user -eq "")
-                        { $user = "ocadm" }
-
-                        $password = Read-Host "Enter Password" -AsSecurestring
-                        $auth = OpCon_Login -url $url -user $user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
-                        
-                        if($auth.id)
-                        {
-                            $password = "" # Clear out password variable
-                            $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$name;"url"=$url;"user"=$user;"token"=("Token " + $auth.id);"expiration"=($auth.validUntil);"release"=((OpCon_APIVersion -url $url).opConRestApiProductVersion);"active"="true"}
-                            Clear-Host     # Clears console
-                            Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
-                        }
-                        else
-                        { OpConsole_OpConConnect -logins $logins -configPath $configPath | Out-Null }
-
-                        $portMenu[$port].Option = "Exit"
-                    }
-                    else 
-                    {
-                        Write-Host "Invalid Port selection"
-                        $portMenu | Format-Table Id,Option | Out-Host
-                        $port = Read-Host "Enter API Port option (blank for default)"
-
-                        if($port -eq "")
-                        { $port = 1 }
-                    }
-                }
-                $connection[$tls].Option = "Exit"
-            }
-            else 
-            { 
-                Write-Host "Invalid TLS option entered" 
-                $portMenu | Format-Table Id,Option | Out-Host
-                $tls = Read-Host "Enter a TLS option <id> (blank for default)"
-
-                if($tls -eq "")
-                { $tls = 1 }                
-            }
-
-            $menu = New-Object System.Collections.ArrayList
-            $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="No"})
-            $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="Yes"})
-            $menu | Format-Table Id,Option | Out-Host
-
-            $save = Read-Host "Save connection to OpConsole.ini?"
-            # save to file here
-            if($menu[$save].Option -eq "Yes")
+            if($tls -eq "")
+            { $tls = 1 }
+        
+            while($connection[$tls].Option -ne "Exit")
             {
-                "`r`n# Additional OpCon Connection" | Out-File -Append -FilePath $configPath
-                ("OPCON-SERVER_" + $logins[$logins.Count-1].name + "=" + $logins[$logins.Count-1].url) | Out-File -Append -FilePath $configPath
-                ("OPCON-USER_" + $logins[$logins.Count-1].name + "=" + $logins[$logins.Count-1].user) | Out-File -Append -FilePath $configPath
+                if(($connection[$tls].Option -eq "TLS (default)") -or ($tls -eq "") -or ($connection[$tls].Option -eq "Non-TLS"))
+                {
+                    if(($connection[$tls].Option -eq "TLS (default)") -or ($tls -eq ""))
+                    { $tlsSetting = "https://" }
+                    elseif($connection[$tls].Option -eq "Non-TLS") 
+                    { $tlsSetting = "http://" }
+                
+                    $hostname = Read-Host "Enter OpCon API hostname/ip (blank for localhost)"
+                    if($hostname -eq "")
+                    { $hostname = "localhost" }
+
+                    $portMenu = @()
+                    $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="Exit"}
+                    $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="9010 (default)"}
+                    $portMenu += [PSCustomObject]@{Id=$portMenu.Count;Option="Custom"}
+                    $portMenu | Format-Table Id,Option | Out-Host
+                    $port = Read-Host "Enter API Port option (blank for default)"
+                    
+                    if($port -eq "")
+                    { $port = 1 }
+
+                    While($portMenu[$port].Option -ne "Exit")
+                    {
+                        # Assign default port
+                        if(($portMenu[$port].Option -eq "9010 (default)") -or ($port -eq "") -or ($portMenu[$port].Option -eq "Custom"))
+                        {
+                            if(($portMenu[$port].Option -eq "9010 (default)") -or ($port -eq ""))
+                            { $portSetting = "9010" }
+                            elseif($portMenu[$port].Option -eq "Custom")
+                            { $portSetting = "Enter custom port" }
+
+                            $url = $tlsSetting + $hostname + ":" + $portSetting
+                            $name = Read-Host "Environment name (optional)"
+                            
+                            if($name -eq "")
+                            { $name = $url.Substring($url.IndexOf("//")+2) }
+                        
+                            $user = Read-Host "Enter Username (blank for ocadm)"
+                            if($user -eq "")
+                            { $user = "ocadm" }
+
+                            $password = Read-Host "Enter Password" -AsSecurestring
+                            $auth = OpCon_Login -url $url -user $user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
+                            
+                            if($auth.id)
+                            {
+                                $password = "" # Clear out password variable
+                                $logins += [pscustomobject]@{"id"=$logins.Count;"name"=$name;"url"=$url;"user"=$user;"token"=("Token " + $auth.id);"expiration"=($auth.validUntil);"release"=((OpCon_APIVersion -url $url).opConRestApiProductVersion);"active"="true"}
+                                Clear-Host     # Clears console
+                                Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+                            }
+                            else
+                            { OpConsole_OpConConnect -logins $logins -configPath $configPath | Out-Null }
+
+                            $portMenu[$port].Option = "Exit"
+                        }
+                        else 
+                        {
+                            Write-Host "Invalid Port selection"
+                            $portMenu | Format-Table Id,Option | Out-Host
+                            $port = Read-Host "Enter API Port option (blank for default)"
+
+                            if($port -eq "")
+                            { $port = 1 }
+                        }
+                    }
+                    $connection[$tls].Option = "Exit"
+                }
+                else 
+                { 
+                    Write-Host "Invalid TLS option entered" 
+                    $portMenu | Format-Table Id,Option | Out-Host
+                    $tls = Read-Host "Enter a TLS option <id> (blank for default)"
+
+                    if($tls -eq "")
+                    { $tls = 1 }                
+                }
+
+                $menu = New-Object System.Collections.ArrayList
+                $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="No"})
+                $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="Yes"})
+                $menu | Format-Table Id,Option | Out-Host
+
+                $save = Read-Host "Save connection to OpConsole.ini?"
+                # save to file here
+                if($menu[$save].Option -eq "Yes")
+                {
+                    "`r`n# Additional OpCon Connection" | Out-File -Append -FilePath $configPath
+                    ("OPCON-SERVER_" + $logins[$logins.Count-1].name + "=" + $logins[$logins.Count-1].url) | Out-File -Append -FilePath $configPath
+                    ("OPCON-USER_" + $logins[$logins.Count-1].name + "=" + $logins[$logins.Count-1].user) | Out-File -Append -FilePath $configPath
+                }
             }
         }
     }
@@ -1007,14 +1010,14 @@ function Opconsole_SQLConnect($sqlLogins,$configPath)
         
         if(($sqlLogins[$sqlConnection].user -ne "") -and ($sqlLogins[$sqlConnection].SQLName -ne "Create New") -and ($sqlConnection -ne ""))
         { 
-            $sqlLogins.Where({ $_.active -eq $true }) | ForEach-Object{ $_.active = $false }
+            $sqlLogins.Where({ $_.active -eq "true" }) | ForEach-Object{ $_.active = "false" }
             if($sqlLogins[$sqlConnection].user -ne "")
             {
                 $password = Read-Host "Enter user password" -AsSecureString 
                 $sqlLogins[$sqlConnection].password = ((New-Object PSCredential "user",$password).GetNetworkCredential().Password) 
                 $password = ""
             }
-            $sqlLogins[$sqlConnection].active = $true
+            $sqlLogins[$sqlConnection].active = "true"
         }
     }
     elseif($sqlConnection.Count -eq 1)
@@ -1022,38 +1025,52 @@ function Opconsole_SQLConnect($sqlLogins,$configPath)
     else 
     { $sqlConnection = -1 }
 
-    if($sqlLogins[$sqlConnection].SQLName -eq "Create New")
+    if($sqlConnection -ne "")
     {
-        Write-Host "`r`nCreating new SQL connection....."
-
-        $newServer = Read-Host "Enter a new sql server (dns or ip)"
-        $newServerName = Read-Host "Enter a new name for the server"
-        $newDB = Read-Host "Enter the db name"
-        $newUser = Read-Host "Enter the user name (blank for Win Auth)"
-
-        $menu = New-Object System.Collections.ArrayList
-        $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="No"})
-        $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="Yes"})
-        $menu | Format-Table Id,Option | Out-Host
-
-        $setActive = Read-Host "Set this connection as active?"
-        if($menu[$setActive].Option -eq "Yes")
-        { $sqlLogins += [pscustomobject]@{"Id"=$sqlLogins.Count;"server"=$newServer;"sqlname"=$newServerName;"db"=$newDB;"user"=$newUser;"active"=$true} }
-        else
-        { $sqlLogins += [pscustomobject]@{"Id"=$sqlLogins.Count;"server"=$newServer;"sqlname"=$newServerName;"db"=$newDB;"user"=$newUser;"active"=$false} }
-
-        $menu | Format-Table Id,Option | Out-Host
-        $save = Read-Host "Save connection to OpConsole.ini?"
-        
-        # save to file here
-        if($menu[$save].Option -eq "Yes")
+        if($sqlLogins[$sqlConnection].SQLName -eq "Create New")
         {
-            "`r`n# Additional SQL Connection" | Out-File -Append -FilePath $configPath
-            ("SQL-SERVER_" + $sqlLogins[$sqlLogins.Count-1].sqlname + "=" + $sqlLogins[$sqlLogins.Count-1].server + "," + $sqlLogins[$sqlLogins.Count-1].db) | Out-File -Append -FilePath $configPath
-            ("SQL-USER_" + $sqlLogins[$sqlLogins.Count-1].sqlname + "=" + $sqlLogins[$sqlLogins.Count-1].user) | Out-File -Append -FilePath $configPath
+            Write-Host "`r`nCreating new SQL connection....."
+
+            $newServer = Read-Host "Enter a new sql server (dns or ip)"
+            $newServerName = Read-Host "Enter a new name for the server"
+            $newDB = Read-Host "Enter the db name"
+            $newUser = Read-Host "Enter the user name (blank for Win Auth)"
+
+            $menu = New-Object System.Collections.ArrayList
+            $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="No"})
+            $menu.Add([pscustomobject]@{"Id"=$menu.Count;"Option"="Yes"})
+            $menu | Format-Table Id,Option | Out-Host
+
+            $setActive = Read-Host "Set this connection as active?"
+            if($menu[$setActive].Option -eq "Yes")
+            { $sqlLogins += [pscustomobject]@{"Id"=$sqlLogins.Count;"server"=$newServer;"sqlname"=$newServerName;"db"=$newDB;"user"=$newUser;"active"="true"} }
+            else
+            { $sqlLogins += [pscustomobject]@{"Id"=$sqlLogins.Count;"server"=$newServer;"sqlname"=$newServerName;"db"=$newDB;"user"=$newUser;"active"="false"} }
+
+            $menu | Format-Table Id,Option | Out-Host
+            $save = Read-Host "Save connection to OpConsole.ini?"
+            
+            # save to file here
+            if($menu[$save].Option -eq "Yes")
+            {
+                "`r`n# Additional SQL Connection" | Out-File -Append -FilePath $configPath
+                ("SQL-SERVER_" + $sqlLogins[$sqlLogins.Count-1].sqlname + "=" + $sqlLogins[$sqlLogins.Count-1].server + "," + $sqlLogins[$sqlLogins.Count-1].db) | Out-File -Append -FilePath $configPath
+                ("SQL-USER_" + $sqlLogins[$sqlLogins.Count-1].sqlname + "=" + $sqlLogins[$sqlLogins.Count-1].user) | Out-File -Append -FilePath $configPath
+            }
         }
     }
 
     return $sqlLogins
 }
 New-Alias "opc-sqlconnect" OpConsole_SQLConnect
+
+function OpConsole_SQLQuery($server,$user,$userPassword,$db)
+{
+    $query = Read-Host "Enter a sql query for db"$db
+    
+    if($user -ne "")
+    { Invoke-Sqlcmd -ServerInstance $server -Database $db -Query $query -Username $user -Password $userPassword | Out-Host }
+    else 
+    { Invoke-Sqlcmd -ServerInstance $server -Database $db -Query $query | Out-Host }
+}
+New-Alias "opc-sql-query" OpConsole_SQLQuery
