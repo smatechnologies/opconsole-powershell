@@ -54,9 +54,9 @@ $cmdArray = @()   # Array to store commands entered
 $lastModified = "2020-08-05" # Last tested
 $opconVersion = "19.1.1"     # Last tested OpCon Version
 
-Write-Host "========================================================================================================="
-Write-Host "                            Welcome to OpConsole v0.7.$lastModified for OpCon v$opconVersion"
-Write-Host "=========================================================================================================`n"
+Write-Host "============================================================================="
+Write-Host "      Welcome to OpConsole v0.7.$lastModified for OpCon v$opconVersion"
+Write-Host "=============================================================================`n"
 
 # Load any saved configurations
 if(test-path $consoleConfig)
@@ -127,7 +127,7 @@ if(test-path $consoleConfig)
     }
 }
 else
-{ return Write-Host "No OpConsole.ini file found at: "$path }
+{ Write-Host "No OpConsole.ini file found at: "$consoleConfig }
 
 # Display logins
 if($logins.Count -gt 1)
@@ -214,14 +214,14 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
                                         }
                                         else 
                                         {
-                                            $suppress = $logins | Where-Object{ $_.active -eq "true";$_.token = "" }
-                                            $suppress = opc-connect -logins $logins
+                                            $logins | Where-Object{ $_.active -eq "true";$_.token = "" } | Out-Null
+                                            OpConsole_OpConConnect -logins $logins -configPath $consoleConfig | Out-Null
                                         }
                                     }
                                     else
                                     {
                                         Write-Host "`r`n*****Must connect to an OpCon environment first!*****"
-                                        $suppress = opc-connect -logins $logins
+                                        OpConsole_OpConConnect -logins $logins -configPath $consoleConfig | Out-Null
                                     }
                                     break
                                 }
@@ -235,7 +235,7 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
                                     else
                                     {
                                         Write-Host "`r`n*****Must connect to a SQL environment first!*****"
-                                        $suppress = opc-connect2 -logins $logins -sqlLogins $sqlLogins
+                                        OpConsole_SQLConnect -sqlLogins $sqlLogins -configPath $consoleConfig | Out-Null
                                     }
                                     break
                                 }

@@ -399,7 +399,7 @@ function OpConsole_Scripts($url,$token)
           
     if($getScripts.Count -gt 0)
     {
-        $getScripts | ForEach-Object{ $suppress = $scriptsArray.Add([pscustomobject]@{"Id"=$scriptsArray.Count;"Name"=$_.name;"Type"=$_.type.name;"ScriptId"=$_.id }) } 
+        $getScripts | ForEach-Object{ $scriptsArray.Add([pscustomobject]@{"Id"=$scriptsArray.Count;"Name"=$_.name;"Type"=$_.type.name;"ScriptId"=$_.id }) | Out-Null } 
 
         $scriptsArray | Format-Table Id,Name,Type | Out-Host
         $script = Read-Host "Enter a script <id> (blank to go back)"
@@ -417,7 +417,7 @@ function OpConsole_Scripts($url,$token)
             if($menu[$selection].Option -eq "View script versions")
             {
                 $versionArray = New-Object System.Collections.ArrayList
-                (OpCon_GetScriptVersions -url $url -token $token -id $scriptsArray[$script].ScriptId).versions | ForEach-Object{ $suppress = $versionArray.Add([pscustomobject]@{Version=$_.version;Comment=$_.message }) }
+                (OpCon_GetScriptVersions -url $url -token $token -id $scriptsArray[$script].ScriptId).versions | ForEach-Object{ $versionArray.Add([pscustomobject]@{Version=$_.version;Comment=$_.message }) | Out-Null }
 
                 $versionArray | Format-Table Version,Comment | Out-Host
                 $scriptVersion = Read-Host "Enter a script version <id> (blank to exit)"
@@ -474,55 +474,63 @@ C:\PS> opconnect"
 #>
 Function OpConsole_OpConConnect($logins,$configPath)
 { 
-    $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host
-    $opconEnv = Read-Host "Enter OpCon environment <id> (blank to go back)"
-
-    if(($opconEnv -gt 0) -and ($opconEnv -ne ""))
+    if($logins.Count -gt 1)
     {
-        $logins | ForEach-Object -Parallel { if($_.active -eq "true" -or $_.active -eq "")
-                                            { $_.active = "false" }
-                                            }
-        if($logins[$opconEnv].user -eq "")
-        { $logins[$opconEnv].user = Read-Host "Enter Username" }
-
-        if($logins[$opconEnv].url -eq "")
-        { 
-            Write-Host "Blank URL for "$logins[$opconEnv].name
-            Break
-        }
-
-        if($logins[$opconEnv].token -ne "")
+        $logins | Format-Table Id,Name,User,Expiration,Release,Active | Out-Host
+        $opconEnv = Read-Host "Enter OpCon environment <id> (blank to go back)"
+        
+        if(($opconEnv -gt 0) -and ($opconEnv -ne ""))
         {
-            if(!(OpConsole_CheckExpiration -connection $logins[$opconEnv]))
-            { $logins[$opconEnv].token = "" }
-        }
+            $logins | ForEach-Object -Parallel { if($_.active -eq "true" -or $_.active -eq "")
+                                                { $_.active = "false" }
+                                                }
+            if($logins[$opconEnv].user -eq "")
+            { $logins[$opconEnv].user = Read-Host "Enter Username" }
 
-        if($logins[$opconEnv].token -eq "")
-        {
-            $password = Read-Host "Password" -AsSecurestring #("Password for User: "+$logins[$opconEnv].User+" for Environment: "+$logins[$opconEnv].Name)
-            $auth = OpCon_Login -url $logins[$opconEnv].url -user $logins[$opconEnv].user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
-            
-            if($auth.id)
-            {
-                $password = "" # Clear out password variable
-                $logins[$opconEnv].token = ("Token " + $auth.id)
-                $logins[$opconEnv].expiration = ($auth.validUntil)
-                $logins[$opconEnv].release = ((OpCon_APIVersion -url $logins[$opconEnv].url).opConRestApiProductVersion)
-                $logins[$opconEnv].active = "true"
-                Clear-Host
-                Write-Host "Active connection is"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+            if($logins[$opconEnv].url -eq "")
+            { 
+                Write-Host "Blank URL for "$logins[$opconEnv].name
+                Break
             }
-            else
-            { $suppress = OpConsole_OpConConnect -logins $logins -configPath $configPath }
-        }
-        else 
-        { 
-            $logins[$opconEnv].active = "true" 
-            Clear-Host
-            Write-Host "Active connection is"($logins | Where-Object{ $_.active -eq "true"}).name"-"($logins | Where-Object{ $_.active -eq "true"}).user ", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+
+            if($logins[$opconEnv].token -ne "")
+            {
+                if(!(OpConsole_CheckExpiration -connection $logins[$opconEnv]))
+                { $logins[$opconEnv].token = "" }
+            }
+
+            if($logins[$opconEnv].token -eq "")
+            {
+                $password = Read-Host "Password" -AsSecurestring #("Password for User: "+$logins[$opconEnv].User+" for Environment: "+$logins[$opconEnv].Name)
+                $auth = OpCon_Login -url $logins[$opconEnv].url -user $logins[$opconEnv].user -password ((New-Object PSCredential "user",$password).GetNetworkCredential().Password)
+                
+                if($auth.id)
+                {
+                    $password = "" # Clear out password variable
+                    $logins[$opconEnv].token = ("Token " + $auth.id)
+                    $logins[$opconEnv].expiration = ($auth.validUntil)
+                    $logins[$opconEnv].release = ((OpCon_APIVersion -url $logins[$opconEnv].url).opConRestApiProductVersion)
+                    $logins[$opconEnv].active = "true"
+                    Clear-Host
+                    Write-Host "Active connection is"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+                }
+                else
+                { OpConsole_OpConConnect -logins $logins -configPath $configPath | Out-Null }
+            }
+            else 
+            { 
+                $logins[$opconEnv].active = "true" 
+                Clear-Host
+                Write-Host "Active connection is"($logins | Where-Object{ $_.active -eq "true"}).name"-"($logins | Where-Object{ $_.active -eq "true"}).user ", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
+            }
         }
     }
-    elseif(($logins[$opconEnv].name -eq "Create New") -and ($opconEnv -ne ""))
+    elseif($logins.Count -eq 1)
+    { $opconEnv = 0 }
+    else
+    { $opconEnv = -1 }
+    
+    if($logins[$opconEnv].name -eq "Create New")
     {
         Write-Host "`r`nCreating new OpCon connection....."
 
@@ -590,7 +598,7 @@ Function OpConsole_OpConConnect($logins,$configPath)
                             Write-Host "Connected to"($logins | Where-Object{ $_.active -eq "true"}).name", expires at"($logins | Where-Object{ $_.active -eq "true"}).expiration
                         }
                         else
-                        { $suppress = OpConsole_OpConConnect -logins $logins -configPath $configPath }
+                        { OpConsole_OpConConnect -logins $logins -configPath $configPath | Out-Null }
 
                         $portMenu[$port].Option = "Exit"
                     }
@@ -646,9 +654,7 @@ Function OpConsole_ReadLogErrors($path)
         For($x=0;$x -lt $contents.Count;$x++)
         {
             if(($contents[$x] -like "*failed*" -or $contents[$x] -like "*unable*") -and $contents[$x] -notlike "*processing event*")
-            {
-                $suppress = $fileObj.Add([pscustomobject]@{"Date/Time"=$contents[$x].Substring(0,23);"Reason"=$contents[$x].Substring(27).Trim()})
-            }
+            { $fileObj.Add([pscustomobject]@{"Date/Time"=$contents[$x].Substring(0,23);"Reason"=$contents[$x].Substring(27).Trim()}) | Out-Null }
         }
         return $fileObj 
     }
@@ -668,9 +674,7 @@ Function OpConsole_ReadSAMLogEvents($path)
         For($x=0;$x -lt $contents.Count;$x++)
         {
             if($contents[$x] -like "*processing event*" -and $contents[$x] -notlike "*processing events*")
-            {
-                $suppress = $fileObj.Add([pscustomobject]@{"Date/Time"=$contents[$x].Substring(0,23);"Event"=$contents[$x].Substring(43,$contents[$x].IndexOf("Received") - 44).Trim();"Location"=$contents[$x].Substring($contents[$x].IndexOf("Received")).Trim()}) 
-            }
+            { $fileObj.Add([pscustomobject]@{"Date/Time"=$contents[$x].Substring(0,23);"Event"=$contents[$x].Substring(43,$contents[$x].IndexOf("Received") - 44).Trim();"Location"=$contents[$x].Substring($contents[$x].IndexOf("Received")).Trim()}) | Out-Null }
         }
         return $fileObj 
     }
@@ -765,7 +769,7 @@ function OpConsole_BatchUsers($url,$token)
             for($x=0;$x -lt $roleArray.Count;$x++)
             { 
                 $currentRole = $roles.Where({ $_.id -eq $roleArray[$x] })
-                $suppress = $roleIdArray.Add([pscustomobject]@{ "id"=$currentRole.id;"name"=$currentRole.name })
+                $roleIdArray.Add([pscustomobject]@{ "id"=$currentRole.id;"name"=$currentRole.name }) | Out-Null
             }
             
             OpCon_CreateBatchUser -url $url -token $token -platformName $platforms[$platform].Option -loginName $loginName -password ((New-Object PSCredential "user",$userPassword).GetNetworkCredential().Password) -roleIds $roleIdArray | Out-Host
@@ -929,7 +933,7 @@ function OpConsole_JobCountByStatusReport($url,$token)
     $selectSubMenu = Read-Host "Enter a filter option <id>"
 
     if($subMenu[$selectSubMenu].Option -eq "Go Back")
-    { $suppress = opc-reports -url $url -token $token }
+    { opc-reports -url $url -token $token | Out-Null }
     elseif($subMenu[$selectSubMenu].Option -eq "Machine")
     { 
         $machines = OpCon_GetAgent -url $url -token $token
@@ -976,7 +980,7 @@ function OpConsole_JobStatusReport($url,$token)
             $result = $result.Where({ $date -eq ( $_.schedule.date | Get-Date -Format "yyyy-MM-dd")} ).Where({ $_.jobType.description -ne "Container" })
 
             $resultMenu = New-Object System.Collections.ArrayList
-            $result | ForEach-Object{ $suppress = $resultMenu.Add([pscustomobject]@{Id=$resultMenu.Count;Date=$date;JobId=$_.id;"Path"=$_.uniqueJobId;"Machine"=$_.startMachine.name;Status=$_.status.description}) }
+            $result | ForEach-Object{ $resultMenu.Add([pscustomobject]@{Id=$resultMenu.Count;Date=$date;JobId=$_.id;"Path"=$_.uniqueJobId;"Machine"=$_.startMachine.name;Status=$_.status.description}) } | Out-Null
             $resultMenu | Format-Table Id,Date,Machine,Status,@{Label="Schedule|Path";Expression={$_.Path} } -Wrap | Out-Host
 
             $outputSelection = Read-Host "Enter an option to view job output <id> (blank to go back)"
@@ -987,7 +991,7 @@ function OpConsole_JobStatusReport($url,$token)
                 $global:jobOutput | Out-Host
                 Write-Host "Job output saved to variable `$global:jobOutput"
             }
-            $suppress = opc-reports -url $url -token $token
+            opc-reports -url $url -token $token | Out-Null
         }
         else
         { Write-Host "No jobs found with that status on $date" }
@@ -996,22 +1000,32 @@ New-Alias "opc-jobstatus" OpConsole_JobStatusReport
 
 function Opconsole_SQLConnect($sqlLogins,$configPath)
 {
-    $sqlLogins | Format-Table Id,SQLName,DB,User,Active | Out-Host
-    $sqlConnection = Read-Host "Enter a sql connection <id> (blank to go back)"
-    
-    if(($sqlLogins[$sqlConnection].user -ne "") -and ($sqlLogins[$sqlConnection].SQLName -ne "Create New") -and ($sqlConnection -ne ""))
-    { 
-        $sqlLogins.Where({ $_.active -eq $true }) | ForEach-Object{ $_.active = $false }
-        if($sqlLogins[$sqlConnection].user -ne "")
-        {
-            $password = Read-Host "Enter user password" -AsSecureString 
-            $sqlLogins[$sqlConnection].password = ((New-Object PSCredential "user",$password).GetNetworkCredential().Password) 
-            $password = ""
-        }
-        $sqlLogins[$sqlConnection].active = $true
-    }
-    elseif(($sqlLogins[$sqlConnection].SQLName -eq "Create New") -and ($sqlConnection -ne "")) 
+    if($sqlLogins.Count -gt 1)
     {
+        $sqlLogins | Format-Table Id,SQLName,DB,User,Active | Out-Host
+        $sqlConnection = Read-Host "Enter a sql connection <id> (blank to go back)"
+        
+        if(($sqlLogins[$sqlConnection].user -ne "") -and ($sqlLogins[$sqlConnection].SQLName -ne "Create New") -and ($sqlConnection -ne ""))
+        { 
+            $sqlLogins.Where({ $_.active -eq $true }) | ForEach-Object{ $_.active = $false }
+            if($sqlLogins[$sqlConnection].user -ne "")
+            {
+                $password = Read-Host "Enter user password" -AsSecureString 
+                $sqlLogins[$sqlConnection].password = ((New-Object PSCredential "user",$password).GetNetworkCredential().Password) 
+                $password = ""
+            }
+            $sqlLogins[$sqlConnection].active = $true
+        }
+    }
+    elseif($sqlConnection.Count -eq 1)
+    { $sqlConnection = 0 }
+    else 
+    { $sqlConnection = -1 }
+
+    if($sqlLogins[$sqlConnection].SQLName -eq "Create New")
+    {
+        Write-Host "`r`nCreating new SQL connection....."
+
         $newServer = Read-Host "Enter a new sql server (dns or ip)"
         $newServerName = Read-Host "Enter a new name for the server"
         $newDB = Read-Host "Enter the db name"
