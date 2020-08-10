@@ -5,6 +5,7 @@ A console-like program for OpCon.  Allows you to view reports and do other admin
 * OpCon v19.1 (most things will work on earlier versions)
 * Powershell 7.0+ (https://github.com/PowerShell/PowerShell)
 * OpConModule.psm1 (https://github.com/SMATechnologies/opcon-rest-api-client-powershell)
+* Powershell SQLServer module, for SQL commands (https://www.powershellgallery.com/packages/Sqlserver)
 
 # Instructions
 To run this program you must have all the files in the same directory.  The "config" file is not required but makes connecting to environments must faster and easier when starting each time.
