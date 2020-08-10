@@ -57,7 +57,7 @@ $logs += [pscustomobject]@{"id"=$logs.Count;"Location"="Create New" }
 $sqlLogins += [PSCustomObject]@{ "id"=$sqlLogins.Count;"server"="";"sqlname"="Create New";"user"= "";db="";"password"="";"active"=""}
 
 Write-Host "============================================================================="
-Write-Host "      Welcome to OpConsole v0.7.$lastModified for OpCon v$opconVersion"
+Write-Host "      Welcome to OpConsole v0.75.$lastModified for OpCon v$opconVersion"
 Write-Host "=============================================================================`n"
 
 # Load any saved configurations
