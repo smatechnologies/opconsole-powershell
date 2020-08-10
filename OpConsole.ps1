@@ -1,7 +1,7 @@
 ﻿param(
-    $opconModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConModule.psm1")
-    ,$opconsoleModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConsoleModule.psm1")
-    ,$customModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\CustomModule.psm1")
+    $opconModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\OpConModule.psm1")
+    ,$opconsoleModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\OpConsoleModule.psm1")
+    ,$customModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\CustomModule.psm1")
     ,$consoleConfig = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConsole.ini")
 )
 
@@ -48,7 +48,7 @@ $users = @()      # Array of api users
 $sqlLogins = @()  # Array of sql servers and users
 $sqlusers = @()   # Array of sql users 
 $cmdArray = @()   # Array to store commands entered
-$lastModified = "2020-08-07" # Last tested
+$lastModified = "2020-08-10" # Last tested
 $opconVersion = "19.1.1"     # Last tested OpCon Version
 
 # Initialize arrays with "create new" option
