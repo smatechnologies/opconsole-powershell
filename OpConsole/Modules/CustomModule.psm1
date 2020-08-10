@@ -1,5 +1,5 @@
-function MyCustomFunction()
+function MyCustomFunction
 {
-	Write-Host "Hello World!
+	Write-Host "Hello World!"
 }
 New-Alias "custom-myfunction" MyCustomFunction
