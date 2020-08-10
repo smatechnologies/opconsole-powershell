@@ -208,16 +208,30 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
                                     break 
                                 }
             "*sql-*"            {
-                                    $activeConnection = $sqlLogins.Where({ $_.active -eq "true" })
-                                    if($activeConnection)
+                                    try 
                                     {
-                                        $session = $sqlLogins.Where({ $_.active -eq "true" })
-                                        Invoke-Expression -Command ("$command -server " + $session.server + " -user '" + $session.user + "' -userPassword " + $session.password + " -db '" + $session.db + "'") | Out-Host
+                                        $sqlServer = $true
+                                        Import-Module SqlServer -Force
                                     }
-                                    else
+                                    catch 
+                                    { 
+                                        Write-Host "Unable to import 'SqlServer' module!"
+                                        $sqlServer = $false
+                                    }
+
+                                    if($sqlServer)
                                     {
-                                        Write-Host "`r`n*****Must connect to a SQL environment first!*****"
-                                        $sqlLogins = OpConsole_SQLConnect -sqlLogins $sqlLogins -configPath $consoleConfig
+                                        $activeConnection = $sqlLogins.Where({ $_.active -eq "true" })
+                                        if($activeConnection)
+                                        {
+                                            $session = $sqlLogins.Where({ $_.active -eq "true" })
+                                            Invoke-Expression -Command ("$command -server " + $session.server + " -user '" + $session.user + "' -userPassword " + $session.password + " -db '" + $session.db + "'") | Out-Host
+                                        }
+                                        else
+                                        {
+                                            Write-Host "`r`n*****Must connect to a SQL environment first!*****"
+                                            $sqlLogins = OpConsole_SQLConnect -sqlLogins $sqlLogins -configPath $consoleConfig
+                                        }
                                     }
                                     break
                                 }

@@ -7,6 +7,7 @@ function OpConsole_Help
     #$menu += [pscustomobject]@{"command" = "opc-ss";"Description" = "Lets you manage Self Service buttons"}
     $menu += [pscustomobject]@{"Command" = "opc-property" ;"Description" = "Lets you manage OpCon global properties"}
     $menu += [pscustomobject]@{"Command" = "opc-reports";"Description" = "View various reports in OpConsole"}
+    $menu += [pscustomobject]@{"Command" = "opc-sql-query";"Description" = "Lets you run MS SQL queries"}
     $menu += [pscustomobject]@{"command" = "opc-scripts";"Description" = "Lets you view/run scripts from OpCon script repository"}
     $menu += [pscustomobject]@{"Command" = "opc-services";"Description" = "Manage Windows services"}
     $menu += [pscustomobject]@{"Command" = "opc-listall";"Description" = "Lists all commands"}
@@ -1008,7 +1009,18 @@ New-Alias "opc-jobstatus" OpConsole_JobStatusReport
 
 function Opconsole_SQLConnect($sqlLogins,$configPath)
 {
-    if($sqlLogins.Count -gt 1)
+    try 
+    {
+        $sqlServer = $true
+        Import-Module SqlServer -Force
+    }
+    catch 
+    { 
+        Write-Host "Unable to import 'SqlServer' module!"
+        $sqlServer = $false
+    }
+
+    if(($sqlLogins.Count -gt 1) -and ($sqlServer))
     {
         $sqlLogins | Format-Table Id,SQLName,DB,User,Active | Out-Host
         $sqlConnection = Read-Host "Enter a sql connection <id> (blank to go back)"
@@ -1090,7 +1102,7 @@ function OpConsole_AgentReport($url,$token)
     Write-Host "OpCon Agent report"
     Write-Host "--------------------"
     $agents | Format-Table Id,Name,@{Label="status";Expression={
-                                                                    Switch ($_.status.operationStatus)
+                                                                    Switch ($_.status.state)
                                                                     {
                                                                         "U" { "Up"; break }
                                                                         "D" { "Down"; break }
