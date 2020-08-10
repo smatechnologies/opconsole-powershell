@@ -13,12 +13,14 @@ if((Test-Path $opconModule) -and (Test-Path $opconsoleModule))
     #Verify PS version is at least 7.0 
     if($PSVersionTable.PSVersion.Major -lt 7)
     {
+        Write-Host "OpConsole only supports Powershell 7+" 
         MsgBox -Title "Error" -Message "OpConsole only supports Powershell 7+" 
         Exit
     }
 }
 else
 {
+    Write-Host "Unable to import SMA API modules!" 
     MsgBox -Title "Error" -Message "Unable to import SMA API modules!" 
     Exit
 }
@@ -30,6 +32,7 @@ if($customModule -ne "")
     { Import-Module -Name $customModule -Force }
     else
     {
+        Write-Host "Unable to import custom module!"
         MsgBox -Title "Error" -Message "Unable to import custom module!" 
         Exit
     }
@@ -247,13 +250,9 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
         }
     }
     catch [Exception]
-    { 
-        Write-Host $_ 
-        Write-Host "=============================================================================`r`n"
-        Write-Host "For help use 'opc-help' or 'opc-listall' `n"
-    }
+    { Write-Host $_ }
 
-    Write-Host "=============================================================================`r`n"    
+    Write-Host "`n"   
 }
 
 opc-exit

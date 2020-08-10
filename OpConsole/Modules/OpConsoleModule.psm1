@@ -643,6 +643,9 @@ Function OpConsole_OpConConnect($logins,$configPath)
         }
     }
 
+    Write-Host "============================================================================="
+    Write-Host "For help use 'opc-help' or 'opc-listall' `n"    
+
     return $logins
 }
 New-Alias "opc-opconconnect" OpConsole_Connect
@@ -1061,6 +1064,9 @@ function Opconsole_SQLConnect($sqlLogins,$configPath)
             }
         }
     }
+    Clear-Host
+    Write-Host "Connection setup for"($sqlLogins.Where({$_.active -eq "true"})).sqlname"and db"($sqlLogins.Where({$_.active -eq "true"})).db
+    Write-Host "============================================================================="
     Write-Host "For help use 'opc-help' or 'opc-listall' `n"
 
     return $sqlLogins
