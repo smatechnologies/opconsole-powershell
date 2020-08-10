@@ -17,6 +17,14 @@ opc-connect
 
 You are also able to create new connections at the prompts and save them to the configuration file.
 
+Example commands:
+```
+opc-batchuser # Lets you manage OpCon batch users
+opc-eval      # Lets you evaluate OpCon properties and expressions
+opc-reports   # Runs various console reports
+opc-sql-query  # Lets you run a query against the active sql connection
+```
+
 To add "OpConsole" to the Windows Terminal app, open the Settings and add the following lines under Profiles -> List:
 
 ```
