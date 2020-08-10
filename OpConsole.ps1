@@ -186,7 +186,7 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
                                     break
                                 }
             "opc-services"      { opc-services; break }
-            "opc-connect"      { 
+            "opc-connect"       { 
                                     $menu = @()
                                     $menu += [pscustomobject]@{Id=$menu.Count;Option="Exit"}
                                     $menu += [pscustomobject]@{Id=$menu.Count;Option="OpCon"}
@@ -241,6 +241,8 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
                                     break
                                 }
             "custom-*"          { Invoke-Expression -Command $command | Out-Host; break }
+            "$logins*"          { Write-Host "That command is not allowed."; break }
+            "$sqlLogins*"       { Write-Host "That command is not allowed."; break }
             Default             { Invoke-Expression -Command $command | Out-Host; break }
         }
     }

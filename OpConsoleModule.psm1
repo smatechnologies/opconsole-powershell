@@ -863,13 +863,14 @@ function msgbox {
 
 function OpConsole_Reports($url,$token)
 {
-    $menu = @()
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Exit" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Count By Status" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs Running by Platform" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Job Status Report" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "Jobs waiting on Threshold/Resource" }
-    $menu += [PSCustomObject]@{ id = $menu.Count; Option = "User Report" }
+    $menu = New-Object System.Collections.ArrayList
+    $menu.Add([PSCustomObject]@{ id = $menu.Count; Option = "Exit" }) | Out-Null
+    $menu.Add([PSCustomObject]@{ id = $menu.Count; Option = "Job Count By Status" }) | Out-Null
+    $menu.Add([PSCustomObject]@{ id = $menu.Count; Option = "Jobs Running by Platform" }) | Out-Null
+    $menu.Add([PSCustomObject]@{ id = $menu.Count; Option = "Job Status Report" }) | Out-Null
+    $menu.Add([PSCustomObject]@{ id = $menu.Count; Option = "Jobs waiting on Threshold/Resource" }) | Out-Null
+    $menu.Add([PSCustomObject]@{ id = $menu.Count; Option = "User Report" }) | Out-Null
+    $menu.Add([PSCustomObject]@{ id = $menu.Count; Option = "Agent Report" }) | Out-Null
     $menu | Format-Table Id,Option | Out-Host
     $report = Read-Host "Enter an option <id>"
 
@@ -881,6 +882,7 @@ function OpConsole_Reports($url,$token)
         "Job Status Report"                  { opc-jobstatus -url $url -token $token; break }
         "Jobs waiting on Threshold/Resource" { opc-jobswaiting -url $url -token $token; break }
         "User Report"                        { opc-userreport -url $url -token $token; break }
+        "Agent Report"                       { opc-agentreport -url $url -token $token; break }
         Default                              { Write-Host "Invalid report selection"; opc-reports -url $url -token $token; break }
     }
 }
@@ -1074,3 +1076,22 @@ function OpConsole_SQLQuery($server,$user,$userPassword,$db)
     { Invoke-Sqlcmd -ServerInstance $server -Database $db -Query $query | Out-Host }
 }
 New-Alias "opc-sql-query" OpConsole_SQLQuery
+
+function OpConsole_AgentReport($url,$token)
+{
+    $agents = OpCon_GetAgent -url $url -token $token
+    Write-Host "OpCon Agent report"
+    Write-Host "--------------------"
+    $agents | Format-Table Id,Name,@{Label="status";Expression={
+                                                                    Switch ($_.status.operationStatus)
+                                                                    {
+                                                                        "U" { "Up"; break }
+                                                                        "D" { "Down"; break }
+                                                                        "L" { "Limited"; break }
+                                                                        "E" { "Error"; break }
+                                                                        "W" { "Waiting"; break }
+                                                                    }
+                                                                }
+                                    },CurrentJobs,LastUpdate
+}
+New-Alias "opc-agentreport" OpConsole_AgentReport
