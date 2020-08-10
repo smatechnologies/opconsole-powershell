@@ -1061,6 +1061,7 @@ function Opconsole_SQLConnect($sqlLogins,$configPath)
             }
         }
     }
+    Write-Host "For help use 'opc-help' or 'opc-listall' `n"
 
     return $sqlLogins
 }

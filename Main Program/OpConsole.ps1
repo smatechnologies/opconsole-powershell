@@ -1,7 +1,7 @@
 ﻿param(
-    $opconModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConModule.psm1")
-    ,$opconsoleModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConsoleModule.psm1")
-    ,$customModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\CustomModule.psm1")
+    $opconModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\OpConModule.psm1")
+    ,$opconsoleModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\OpConsoleModule.psm1")
+    ,$customModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\CustomModule.psm1")
     ,$consoleConfig = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConsole.ini")
 )
 
@@ -142,13 +142,13 @@ if($sqlLogins.Count -gt 0)
 { $sqlLogins.Where({$_.sqlname -ne "Create New"}) | Format-Table SQLName,Server,DB,User | Out-Host }
 
 Write-Host "=============================================================================`r`n"
-Write-Host "For help use 'opc-help', to connect to OpCon use 'opc-connect'`n"
+Write-Host "For help use 'opc-help' or 'opc-listall' `n"
 
 $rerun = ""
 $command = ""
 While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
 {
-    $prompt = "<|"
+    $prompt = "X"
 
     # Handles rerunning a command
     if($rerun -eq "")
@@ -246,8 +246,12 @@ While($command -ne "exit" -and $command -ne "quit" -and $command -ne "opc-exit")
             Default             { Invoke-Expression -Command $command | Out-Host; break }
         }
     }
-    catch
-    { Write-Host $_ }
+    catch [Exception]
+    { 
+        Write-Host $_ 
+        Write-Host "=============================================================================`r`n"
+        Write-Host "For help use 'opc-help' or 'opc-listall' `n"
+    }
 
     Write-Host "=============================================================================`r`n"    
 }
