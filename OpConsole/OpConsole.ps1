@@ -1,29 +1,23 @@
 ﻿param(
     $opconModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\OpConModule.psm1")
     ,$opconsoleModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\OpConsoleModule.psm1")
+    ,$reportModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\ReportModule.psm1")
     ,$customModule = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\Modules\CustomModule.psm1")
     ,$consoleConfig = ((($MyInvocation.MyCommand).Path | Split-Path -Parent) + "\OpConsole.ini")
 )
 
-if((Test-Path $opconModule) -and (Test-Path $opconsoleModule))
+if((Test-Path $opconModule) -and (Test-Path $opconsoleModule) -and (Test-Path $reportModule))
 {
-    Import-Module -Name $opconmodule -Force
-    Import-Module -Name $opconsolemodule -Force
+    Import-Module -Name $opconModule -Force
+    Import-Module -Name $opconsoleModule -Force
+    Import-Module -Name $reportModule -Force
 
     #Verify PS version is at least 7.0 
     if($PSVersionTable.PSVersion.Major -lt 7)
-    {
-        Write-Host "OpConsole only supports Powershell 7+" 
-        MsgBox -Title "Error" -Message "OpConsole only supports Powershell 7+" 
-        Exit
-    }
+    { Write-Host "OpConsole only supports Powershell 7+" }
 }
 else
-{
-    Write-Host "Unable to import SMA API modules!" 
-    MsgBox -Title "Error" -Message "Unable to import SMA API modules!" 
-    Exit
-}
+{ Write-Host "Unable to import modules!" }
 
 # Import Custom module
 if($customModule -ne "")
@@ -33,8 +27,7 @@ if($customModule -ne "")
     else
     {
         Write-Host "Unable to import custom module!"
-        MsgBox -Title "Error" -Message "Unable to import custom module!" 
-        Exit
+        MsgBox -Title "Error" -Message "Unable to import custom module!"
     }
 }
 
